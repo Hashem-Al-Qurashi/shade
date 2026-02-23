@@ -94,3 +94,56 @@ class TestComputePerplexity:
         ppl = compute_perplexity(mock_model, mock_tokenizer, ["Hello world test."])
         assert isinstance(ppl, float)
         assert ppl > 0
+
+
+from dataclasses import asdict
+
+
+class TestBenchmarkResult:
+    def test_fields(self):
+        from shade.benchmark import BenchmarkResult
+        r = BenchmarkResult(
+            model_name="test", refusals=12, total_prompts=100,
+            refusal_rate=0.12, kl_divergence=0.043,
+            gsm8k_accuracy=None, gsm8k_total=None,
+            perplexity=None,
+        )
+        assert r.refusal_rate == pytest.approx(0.12)
+        assert r.perplexity is None
+
+    def test_to_dict(self):
+        from shade.benchmark import BenchmarkResult
+        r = BenchmarkResult(
+            model_name="m", refusals=5, total_prompts=50,
+            refusal_rate=0.1, kl_divergence=0.02,
+            gsm8k_accuracy=0.45, gsm8k_total=50, perplexity=12.3,
+        )
+        d = asdict(r)
+        assert d["perplexity"] == pytest.approx(12.3)
+
+
+class TestFormatBenchmarkTable:
+    def test_without_gsm8k(self):
+        from shade.benchmark import BenchmarkResult, format_benchmark_table
+        result = BenchmarkResult("test/model", 12, 100, 0.12, 0.043, None, None, None)
+        table_str = format_benchmark_table(result)
+        assert "test/model" in table_str
+        assert "12" in table_str
+        assert "0.043" in table_str
+
+    def test_with_all_metrics(self):
+        from shade.benchmark import BenchmarkResult, format_benchmark_table
+        result = BenchmarkResult("test/model", 12, 100, 0.12, 0.043, 0.452, 50, 15.7)
+        table_str = format_benchmark_table(result)
+        assert "GSM8K" in table_str or "45.2" in table_str
+        assert "15.7" in table_str or "Perplexity" in table_str
+
+
+class TestFormatBenchmarkJson:
+    def test_valid_json(self):
+        import json
+        from shade.benchmark import BenchmarkResult, format_benchmark_json
+        result = BenchmarkResult("test/model", 12, 100, 0.12, 0.043, 0.452, 50, 15.7)
+        parsed = json.loads(format_benchmark_json(result))
+        assert parsed["model_name"] == "test/model"
+        assert parsed["kl_divergence"] == pytest.approx(0.043)

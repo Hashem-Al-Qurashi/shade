@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json as _json
 import re
+from dataclasses import dataclass
 
 
 def extract_gsm8k_answer(text: str) -> str | None:
@@ -89,3 +91,83 @@ def load_wikitext2_samples(limit: int = 50) -> list[str]:
     from datasets import load_dataset
     dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split=f"test[:{limit}]")
     return [row["text"] for row in dataset if row["text"].strip()]
+
+
+@dataclass
+class BenchmarkResult:
+    """Results from a benchmark run."""
+    model_name: str
+    refusals: int
+    total_prompts: int
+    refusal_rate: float
+    kl_divergence: float
+    gsm8k_accuracy: float | None
+    gsm8k_total: int | None
+    perplexity: float | None
+
+
+def run_benchmark(
+    model: object,
+    evaluator: object,
+    model_name: str,
+    run_gsm8k: bool = False,
+    gsm8k_limit: int = 50,
+    run_perplexity: bool = False,
+    perplexity_limit: int = 50,
+) -> BenchmarkResult:
+    """Run a complete benchmark on a model."""
+    import torch.nn.functional as F
+
+    refusals = evaluator.count_refusals()
+    total_prompts = len(evaluator.bad_prompts)
+    refusal_rate = refusals / total_prompts if total_prompts > 0 else 0.0
+
+    logprobs = model.get_logprobs_batched(evaluator.good_prompts)
+    kl_divergence = F.kl_div(
+        logprobs, evaluator.base_logprobs,
+        reduction="batchmean", log_target=True,
+    ).item()
+
+    gsm8k_accuracy = None
+    gsm8k_total = None
+    if run_gsm8k:
+        from shade.utils import Prompt
+        questions, answers = load_gsm8k_problems(limit=gsm8k_limit)
+        gsm8k_total = len(questions)
+        prompts = [Prompt(system="Solve this math problem. Show your work.", user=q) for q in questions]
+        responses = model.get_responses_batched(prompts)
+        gsm8k_accuracy = compute_gsm8k_accuracy(responses, answers)
+
+    perplexity = None
+    if run_perplexity:
+        texts = load_wikitext2_samples(limit=perplexity_limit)
+        perplexity = compute_perplexity(model.model, model.tokenizer, texts)
+
+    return BenchmarkResult(
+        model_name=model_name, refusals=refusals, total_prompts=total_prompts,
+        refusal_rate=refusal_rate, kl_divergence=kl_divergence,
+        gsm8k_accuracy=gsm8k_accuracy, gsm8k_total=gsm8k_total,
+        perplexity=perplexity,
+    )
+
+
+def format_benchmark_table(result: BenchmarkResult) -> str:
+    """Format a BenchmarkResult as a human-readable text table."""
+    lines = [
+        f"Benchmark Results: {result.model_name}",
+        "=" * 50,
+        f"  Refusals:       {result.refusals}/{result.total_prompts} ({result.refusal_rate:.1%})",
+        f"  KL Divergence:  {result.kl_divergence:.4f}",
+    ]
+    if result.perplexity is not None:
+        lines.append(f"  Perplexity:     {result.perplexity:.2f}")
+    if result.gsm8k_accuracy is not None:
+        lines.append(f"  GSM8K Accuracy: {result.gsm8k_accuracy:.1%} ({result.gsm8k_total} problems)")
+    lines.append("=" * 50)
+    return "\n".join(lines)
+
+
+def format_benchmark_json(result: BenchmarkResult) -> str:
+    """Format a BenchmarkResult as JSON."""
+    from dataclasses import asdict
+    return _json.dumps(asdict(result), indent=2)
