@@ -147,3 +147,34 @@ class TestFormatBenchmarkJson:
         parsed = json.loads(format_benchmark_json(result))
         assert parsed["model_name"] == "test/model"
         assert parsed["kl_divergence"] == pytest.approx(0.043)
+
+
+import json
+
+
+class TestFormatComparisonTable:
+    def test_formats_multiple_results(self):
+        from shade.benchmark import BenchmarkResult
+        from shade.compare import format_comparison_table
+
+        results = [
+            BenchmarkResult("Base", 87, 100, 0.87, 0.0, 0.452, 50, 12.3),
+            BenchmarkResult("Abliterated", 12, 100, 0.12, 0.043, 0.438, 50, 13.1),
+            BenchmarkResult("Steered", 23, 100, 0.23, 0.018, 0.449, 50, 12.5),
+        ]
+        table = format_comparison_table(results)
+        assert "Base" in table
+        assert "Abliterated" in table
+        assert "Steered" in table
+
+
+class TestFormatComparisonJson:
+    def test_valid_json(self):
+        from shade.benchmark import BenchmarkResult
+        from shade.compare import format_comparison_json
+
+        results = [
+            BenchmarkResult("Base", 87, 100, 0.87, 0.0, 0.452, 50, 12.3),
+        ]
+        parsed = json.loads(format_comparison_json(results))
+        assert len(parsed["results"]) == 1
