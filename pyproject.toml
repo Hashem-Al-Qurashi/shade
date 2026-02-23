@@ -37,6 +37,7 @@ dependencies = [
     "questionary~=2.1",
     "requests~=2.32",
     "rich~=14.1",
+    "steering-vectors>=0.12.2",
     "transformers~=4.57",
     "uvicorn~=0.34",
 ]
@@ -46,9 +47,12 @@ research = [
     "geom-median~=0.1",
     "imageio~=2.37",
     "matplotlib~=3.10",
-    "numpy~=2.2",
+    "numpy>=1.26",
     "pacmap~=0.8",
     "scikit-learn~=1.7",
+]
+sae = [
+    "sae-lens>=6.37",
 ]
 
 [dependency-groups]
