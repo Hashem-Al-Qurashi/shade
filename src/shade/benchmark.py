@@ -46,3 +46,46 @@ def load_gsm8k_problems(limit: int = 50) -> tuple[list[str], list[str]]:
     from datasets import load_dataset
     dataset = load_dataset("openai/gsm8k", "main", split=f"test[:{limit}]")
     return [row["question"] for row in dataset], [row["answer"] for row in dataset]
+
+
+def compute_perplexity(
+    model: object,
+    tokenizer: object,
+    texts: list[str],
+    max_length: int = 512,
+) -> float:
+    """Compute perplexity on a list of texts."""
+    import torch
+    import torch.nn.functional as F
+
+    total_loss = 0.0
+    total_tokens = 0
+
+    for text in texts:
+        encodings = tokenizer(text, return_tensors="pt", truncation=True, max_length=max_length)
+        input_ids = encodings["input_ids"].to(next(model.parameters()).device)
+
+        with torch.no_grad():
+            outputs = model(input_ids)
+            logits = outputs.logits
+
+        shift_logits = logits[:, :-1, :].contiguous()
+        shift_labels = input_ids[:, 1:].contiguous()
+
+        loss = F.cross_entropy(
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_labels.view(-1),
+            reduction="sum",
+        )
+        total_loss += loss.item()
+        total_tokens += shift_labels.numel()
+
+    avg_loss = total_loss / total_tokens if total_tokens > 0 else float("inf")
+    return float(torch.exp(torch.tensor(avg_loss)).item())
+
+
+def load_wikitext2_samples(limit: int = 50) -> list[str]:
+    """Load Wikitext-2 test samples for perplexity evaluation."""
+    from datasets import load_dataset
+    dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split=f"test[:{limit}]")
+    return [row["text"] for row in dataset if row["text"].strip()]

@@ -67,3 +67,30 @@ class TestComputeGsm8kAccuracy:
     def test_empty(self):
         from shade.benchmark import compute_gsm8k_accuracy
         assert compute_gsm8k_accuracy([], []) == pytest.approx(0.0)
+
+
+class TestComputePerplexity:
+    def test_with_mock_model(self):
+        import torch
+        from unittest.mock import MagicMock
+        from shade.benchmark import compute_perplexity
+
+        mock_model = MagicMock()
+        mock_tokenizer = MagicMock()
+
+        # Simulate tokenizer output
+        mock_tokenizer.return_value = {"input_ids": torch.randint(0, 1000, (1, 50))}
+        mock_tokenizer.model_max_length = 512
+
+        # Simulate model output with logits
+        mock_output = MagicMock()
+        mock_output.logits = torch.randn(1, 50, 1000)
+        mock_model.return_value = mock_output
+
+        # Mock model.parameters() to return something with a .device attribute
+        mock_param = torch.nn.Parameter(torch.empty(0))
+        mock_model.parameters.return_value = iter([mock_param])
+
+        ppl = compute_perplexity(mock_model, mock_tokenizer, ["Hello world test."])
+        assert isinstance(ppl, float)
+        assert ppl > 0
