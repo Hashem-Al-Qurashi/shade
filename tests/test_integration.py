@@ -10,6 +10,8 @@ Run with: pytest tests/test_integration.py -v
 from __future__ import annotations
 
 import math
+import sys
+from unittest.mock import MagicMock
 
 import pytest
 import torch
@@ -18,12 +20,31 @@ pytestmark = pytest.mark.integration
 
 
 # ---------------------------------------------------------------------------
+# Fix: other test files patch sys.modules with MagicMock at import time.
+# Since pytest imports ALL files before running ANY test, we must undo the
+# mocking at test execution time so we get real transformers/steering_vectors.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _restore_real_modules():
+    """Remove MagicMock entries from sys.modules so real imports work."""
+    mocked_names = [
+        name for name, mod in sys.modules.items()
+        if isinstance(mod, MagicMock)
+    ]
+    for name in mocked_names:
+        del sys.modules[name]
+    yield
+
+
+# ---------------------------------------------------------------------------
 # Shared fixture: load GPT-2 once for the whole module
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
-def gpt2():
+def gpt2(_restore_real_modules):
     """Load GPT-2 (124M) once, shared across all integration tests."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
