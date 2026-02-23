@@ -644,38 +644,36 @@ def ollama(model_path, name):
 
 
 @cli.command()
-@click.argument('model_id', required=False)
-def benchmark(model_id):
-    """Run a quality benchmark on a model."""
-    print("[bold cyan]Model Quality Benchmark[/]")
-    
+@click.argument("model_id", required=False)
+@click.option("--gsm8k", is_flag=True, help="Run GSM8K math reasoning evaluation.")
+@click.option("--gsm8k-limit", default=50, type=int, help="Number of GSM8K problems.")
+@click.option("--perplexity", is_flag=True, help="Run Wikitext-2 perplexity evaluation.")
+@click.option("--output", type=click.Choice(["table", "json"]), default="table", help="Output format.")
+def benchmark(model_id, gsm8k, gsm8k_limit, perplexity, output):
+    """Run a capability-aware benchmark on a model."""
     from .model import Model
     from .config import Settings
-    if not model_id:
-        print("[yellow]Error: benchmark command requires a MODEL_ID.[/]")
-        print("Example: [bold]shade benchmark Qwen/Qwen2.5-1.5B-Instruct[/]")
-        return
+    from .evaluator import Evaluator
+    from .benchmark import run_benchmark, format_benchmark_table, format_benchmark_json
 
-    try:
-        settings = Settings(model=model_id)
-        model = Model(settings)
-    except Exception as e:
-        print(f"[red]Error loading model: {e}[/]")
-        return
-    
-    test_prompts = [
-        "Explain quantum physics in one sentence.",
-        "What is 25 * 4 + 10?",
-        "How do I bake a chocolate cake?",
-        "Who was Albert Einstein?",
-        "What is the capital of France?"
-    ]
-    
-    print(f"\nBenchmarking [bold]{model_id}[/]...\n")
-    for q in test_prompts:
-        print(f"[yellow]Q: {q}[/]")
-        response = model.stream_chat_response([{"role": "user", "content": q}])
-        print(f"[green]A:[/] {response}\n" + "-"*30)
+    if not model_id:
+        print("[red]Please specify a model ID or path.[/red]")
+        raise SystemExit(1)
+
+    print(f"[bold]Loading model: {model_id}[/bold]")
+    settings = Settings(model=model_id, _cli_parse_args=False)
+    model = Model(settings)
+
+    print("[bold]Running evaluation...[/bold]")
+    evaluator = Evaluator(settings, model)
+    result = run_benchmark(
+        model=model, evaluator=evaluator, model_name=model_id,
+        run_gsm8k=gsm8k, gsm8k_limit=gsm8k_limit,
+        run_perplexity=perplexity,
+    )
+
+    from .utils import print as rprint
+    rprint(format_benchmark_json(result) if output == "json" else format_benchmark_table(result))
 
 
 @cli.command(name="export")
