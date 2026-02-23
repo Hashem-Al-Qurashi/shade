@@ -786,6 +786,77 @@ def steer_evaluate(model_id, vector, multiplier, gsm8k, gsm8k_limit, perplexity,
     rprint(format_benchmark_json(result) if output == "json" else format_benchmark_table(result))
 
 
+@cli.command()
+@click.argument("model_id")
+@click.option("--gsm8k", is_flag=True, help="Include GSM8K evaluation.")
+@click.option("--gsm8k-limit", default=50, type=int, help="Number of GSM8K problems.")
+@click.option("--perplexity", is_flag=True, help="Include perplexity evaluation.")
+@click.option("--steering-multiplier", default=1.0, type=float, help="Steering strength.")
+@click.option("--n-trials", default=30, type=int, help="Optuna trials for abliteration.")
+@click.option("--output", type=click.Choice(["table", "json"]), default="table")
+def compare(model_id, gsm8k, gsm8k_limit, perplexity, steering_multiplier, n_trials, output):
+    """Run head-to-head comparison: base vs abliterated vs steered."""
+    from .model import Model
+    from .config import Settings
+    from .evaluator import Evaluator
+    from .benchmark import run_benchmark, format_benchmark_table, format_benchmark_json
+    from .steering import train_steering_vector_from_prompts, save_steering_vector, load_steering_vector
+    from .compare import format_comparison_table, format_comparison_json
+    from .utils import load_prompts, print as rprint
+
+    settings = Settings(model=model_id, _cli_parse_args=False)
+    model_wrapper = Model(settings)
+
+    # 1. Base model benchmark
+    rprint("[bold cyan]Step 1/3: Benchmarking base model...[/bold cyan]")
+    evaluator = Evaluator(settings, model_wrapper)
+    base_result = run_benchmark(
+        model=model_wrapper, evaluator=evaluator, model_name="Base",
+        run_gsm8k=gsm8k, gsm8k_limit=gsm8k_limit, run_perplexity=perplexity,
+    )
+
+    # 2. Abliterated model benchmark
+    # NOTE: abliterate_model() does not exist as a standalone function yet.
+    # Abliteration in Shade is driven by Optuna trials via Model.abliterate().
+    # This step will be wired once the abliteration pipeline is refactored
+    # into a callable function (e.g., abliterate_model(model, settings, n_trials)).
+    rprint("[bold cyan]Step 2/3: Running abliteration + benchmark...[/bold cyan]")
+    rprint("[yellow]Abliteration step is not yet wired (abliterate_model not implemented).[/yellow]")
+    rprint("[yellow]Skipping abliteration; using base model as placeholder.[/yellow]")
+    evaluator_abl = Evaluator(settings, model_wrapper)
+    abl_result = run_benchmark(
+        model=model_wrapper, evaluator=evaluator_abl, model_name="Abliterated",
+        run_gsm8k=gsm8k, gsm8k_limit=gsm8k_limit, run_perplexity=perplexity,
+    )
+
+    # 3. Steered model benchmark (reload base + steer)
+    rprint("[bold cyan]Step 3/3: Training steering vector + benchmark...[/bold cyan]")
+    model_wrapper2 = Model(settings)
+    harmless = load_prompts(settings, settings.good_evaluation_prompts)
+    harmful = load_prompts(settings, settings.bad_evaluation_prompts)
+
+    base_model = model_wrapper2.model
+    if hasattr(base_model, "base_model"):
+        base_model = base_model.base_model
+
+    sv = train_steering_vector_from_prompts(
+        model=base_model, tokenizer=model_wrapper2.tokenizer,
+        harmless_prompts=harmless, harmful_prompts=harmful,
+    )
+
+    with sv.apply(base_model, multiplier=steering_multiplier):
+        evaluator_steer = Evaluator(settings, model_wrapper2)
+        steer_result = run_benchmark(
+            model=model_wrapper2, evaluator=evaluator_steer,
+            model_name=f"Steered (x{steering_multiplier})",
+            run_gsm8k=gsm8k, gsm8k_limit=gsm8k_limit, run_perplexity=perplexity,
+        )
+
+    results = [base_result, abl_result, steer_result]
+    rprint("\n[bold]Comparison Results:[/bold]\n")
+    rprint(format_comparison_json(results) if output == "json" else format_comparison_table(results))
+
+
 @cli.command(name="export")
 @click.argument('model_path', type=click.Path(exists=True))
 @click.option('--format', type=click.Choice(['gguf', 'exl2']), default='gguf')
@@ -826,7 +897,7 @@ def main():
     known_commands = [
         "serve", "doctor", "version", "status", "info", "config",
         "library", "logs", "prune", "clear", "ollama", "benchmark", "download",
-        "cuda", "hf", "commands", "export", "help", "login", "steer"
+        "cuda", "hf", "commands", "export", "help", "login", "steer", "compare"
     ]
     
     # If no arguments, or the first argument isn't a known command or flag,
