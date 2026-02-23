@@ -40,3 +40,30 @@ class TestExtractGsm8kAnswer:
 
     def test_multiple_numbers_takes_last(self):
         assert extract_gsm8k_answer("Got 10, then 20, answer is 30.") == "30"
+
+
+class TestComputeGsm8kAccuracy:
+    def test_all_correct(self):
+        from shade.benchmark import compute_gsm8k_accuracy
+        assert compute_gsm8k_accuracy(
+            ["42", "The answer is 10", "#### 7"],
+            ["#### 42", "#### 10", "#### 7"],
+        ) == pytest.approx(1.0)
+
+    def test_all_wrong(self):
+        from shade.benchmark import compute_gsm8k_accuracy
+        assert compute_gsm8k_accuracy(
+            ["99", "The answer is 0", "I don't know"],
+            ["#### 42", "#### 10", "#### 7"],
+        ) == pytest.approx(0.0)
+
+    def test_partial(self):
+        from shade.benchmark import compute_gsm8k_accuracy
+        assert compute_gsm8k_accuracy(
+            ["42", "wrong", "#### 7"],
+            ["#### 42", "#### 10", "#### 7"],
+        ) == pytest.approx(2 / 3)
+
+    def test_empty(self):
+        from shade.benchmark import compute_gsm8k_accuracy
+        assert compute_gsm8k_accuracy([], []) == pytest.approx(0.0)
