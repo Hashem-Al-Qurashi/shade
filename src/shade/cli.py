@@ -676,6 +676,116 @@ def benchmark(model_id, gsm8k, gsm8k_limit, perplexity, output):
     rprint(format_benchmark_json(result) if output == "json" else format_benchmark_table(result))
 
 
+@cli.group()
+def steer():
+    """Activation steering — train, apply, and evaluate steering vectors."""
+    pass
+
+
+@steer.command(name="train")
+@click.argument("model_id")
+@click.option("--output", "-o", default="steering_vector.pt", help="Output path.")
+@click.option("--layers", "-l", default=None, help="Comma-separated layer indices.")
+@click.option("--batch-size", default=4, type=int, help="Training batch size.")
+def steer_train(model_id, output, layers, batch_size):
+    """Train a steering vector from contrastive prompt pairs."""
+    from .model import Model
+    from .config import Settings
+    from .steering import train_steering_vector_from_prompts, save_steering_vector
+    from .utils import load_prompts
+
+    settings = Settings(model=model_id, _cli_parse_args=False)
+    model_wrapper = Model(settings)
+    harmless = load_prompts(settings.good_evaluation_prompts)
+    harmful = load_prompts(settings.bad_evaluation_prompts)
+
+    parsed_layers = [int(x) for x in layers.split(",")] if layers else None
+    base_model = model_wrapper.model
+    if hasattr(base_model, "base_model"):
+        base_model = base_model.base_model
+
+    sv = train_steering_vector_from_prompts(
+        model=base_model, tokenizer=model_wrapper.tokenizer,
+        harmless_prompts=harmless, harmful_prompts=harmful,
+        layers=parsed_layers, batch_size=batch_size,
+    )
+    from pathlib import Path
+    save_steering_vector(sv, Path(output))
+    print(f"[green]Saved to {output}[/green]")
+
+
+@steer.command(name="apply")
+@click.argument("model_id")
+@click.option("--vector", "-v", required=True, help="Path to steering vector (.pt).")
+@click.option("--multiplier", "-m", default=1.0, type=float, help="Steering strength.")
+def steer_apply(model_id, vector, multiplier):
+    """Chat with a model using an active steering vector."""
+    from .model import Model
+    from .config import Settings
+    from .steering import load_steering_vector
+
+    settings = Settings(model=model_id, _cli_parse_args=False)
+    model_wrapper = Model(settings)
+    from pathlib import Path
+    sv = load_steering_vector(Path(vector))
+
+    base_model = model_wrapper.model
+    if hasattr(base_model, "base_model"):
+        base_model = base_model.base_model
+
+    print(f"[bold]Steering active (x{multiplier}). Type 'exit' to quit.[/bold]")
+    with sv.apply(base_model, multiplier=multiplier):
+        while True:
+            try:
+                user_input = input("\nYou: ")
+            except (EOFError, KeyboardInterrupt):
+                break
+            if user_input.strip().lower() in ("exit", "quit"):
+                break
+            response = model_wrapper.stream_chat_response(
+                [{"role": "user", "content": user_input}]
+            )
+            print(f"Model: {response}")
+
+
+@steer.command(name="evaluate")
+@click.argument("model_id")
+@click.option("--vector", "-v", required=True, help="Path to steering vector (.pt).")
+@click.option("--multiplier", "-m", default=1.0, type=float, help="Steering strength.")
+@click.option("--gsm8k", is_flag=True, help="Run GSM8K evaluation.")
+@click.option("--gsm8k-limit", default=50, type=int)
+@click.option("--perplexity", is_flag=True, help="Run perplexity evaluation.")
+@click.option("--output", type=click.Choice(["table", "json"]), default="table")
+def steer_evaluate(model_id, vector, multiplier, gsm8k, gsm8k_limit, perplexity, output):
+    """Benchmark a model with a steering vector active."""
+    from .model import Model
+    from .config import Settings
+    from .evaluator import Evaluator
+    from .steering import load_steering_vector
+    from .benchmark import run_benchmark, format_benchmark_table, format_benchmark_json
+
+    settings = Settings(model=model_id, _cli_parse_args=False)
+    model_wrapper = Model(settings)
+    from pathlib import Path
+    sv = load_steering_vector(Path(vector))
+
+    base_model = model_wrapper.model
+    if hasattr(base_model, "base_model"):
+        base_model = base_model.base_model
+
+    with sv.apply(base_model, multiplier=multiplier):
+        evaluator = Evaluator(settings, model_wrapper)
+        result = run_benchmark(
+            model=model_wrapper, evaluator=evaluator,
+            model_name=f"{model_id} (steered x{multiplier})",
+            run_gsm8k=gsm8k, gsm8k_limit=gsm8k_limit,
+            run_perplexity=perplexity,
+        )
+
+    from .utils import print as rprint
+    rprint(format_benchmark_json(result) if output == "json" else format_benchmark_table(result))
+
+
 @cli.command(name="export")
 @click.argument('model_path', type=click.Path(exists=True))
 @click.option('--format', type=click.Choice(['gguf', 'exl2']), default='gguf')
@@ -716,7 +826,7 @@ def main():
     known_commands = [
         "serve", "doctor", "version", "status", "info", "config",
         "library", "logs", "prune", "clear", "ollama", "benchmark", "download",
-        "cuda", "hf", "commands", "export", "help", "login"
+        "cuda", "hf", "commands", "export", "help", "login", "steer"
     ]
     
     # If no arguments, or the first argument isn't a known command or flag,
