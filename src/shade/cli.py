@@ -20,7 +20,7 @@ if sys.platform == "win32":
     try:
         import ctypes
         ctypes.CDLL("libiomp5md.dll", mode=ctypes.RTLD_GLOBAL)
-    except:
+    except Exception:
         pass
 
 import webbrowser
@@ -53,7 +53,7 @@ def check_for_updates(quiet=True):
                 print(f"[dim]You are on v{current_version}. Run [bold]git pull[/] to update.[/]\n")
             elif not quiet:
                 print(f"[green]✓ Shade is up to date (v{current_version})[/]")
-    except:
+    except Exception:
         if not quiet:
             print("[dim]Note: Could not check for updates (network issue)[/]")
 
@@ -197,8 +197,9 @@ def run_doctor(fix=False):
         print(f"  Available: [bold]{free_gb:.2f} GB[/]")
         if free_gb < 10:
              print("  [yellow]![/] Low disk space (under 10GB). Model downloads may fail.")
-    except: pass
-    
+    except Exception:
+        pass
+
     # 3. Memory (Fast)
     print()
     print("[bold]System Memory:[/]")
@@ -232,9 +233,6 @@ def run_doctor(fix=False):
         
         print("[dim]  * Importing accelerate...[/]", end="")
         from accelerate.utils import (
-            is_mlu_available,
-            is_musa_available,
-            is_sdaa_available,
             is_xpu_available,
         )
         print(" [green]Done[/].")
@@ -253,7 +251,8 @@ def run_doctor(fix=False):
                 try:
                     vram = torch.cuda.mem_get_info(i)[1] / (1024**3)
                     print(f"     GPU {i}: [bold]{torch.cuda.get_device_name(i)}[/] ({vram:.2f} GB)")
-                except: pass
+                except Exception:
+                    pass
         elif is_xpu_available():
             count = torch.xpu.device_count()
             print(f"  [green]✓[/] Intel XPU available with [bold]{count}[/] device(s)")
@@ -283,8 +282,9 @@ def run_doctor(fix=False):
                 
         # Fix missing server dependencies
         try:
-            import fastapi
-            import uvicorn
+            import importlib.util
+            if importlib.util.find_spec("fastapi") is None or importlib.util.find_spec("uvicorn") is None:
+                raise ImportError("Missing server deps")
         except ImportError:
             print("  [yellow]![/] Missing web server dependencies.")
             if click.confirm("Do you want to install Web Chat support?"):
@@ -428,7 +428,8 @@ def serve(host, port, model_id):
             from .main import prompt_model_selection
             model_id = prompt_model_selection()
             
-        if not model_id: return
+        if not model_id:
+            return
 
         print(f"[dim]* Initializing settings for [bold]{model_id}[/]...[/]", end="")
         from .config import Settings
@@ -447,8 +448,8 @@ def serve(host, port, model_id):
         print(" [green]Done[/].")
 
         start_server(model, settings, host=host, port=port)
-    except Exception as e:
-        print(f"\n[red]Error:[/]")
+    except Exception:
+        print("\n[red]Error:[/]")
         import traceback
         traceback.print_exc()
 
@@ -654,7 +655,9 @@ def benchmark(model_id, gsm8k, gsm8k_limit, perplexity, output):
     from .model import Model
     from .config import Settings
     from .evaluator import Evaluator
-    from .benchmark import run_benchmark, format_benchmark_table, format_benchmark_json
+    from .benchmark import run_benchmark
+    from .benchmark import format_benchmark_table as fmt_table
+    from .benchmark import format_benchmark_json as fmt_json
 
     if not model_id:
         print("[red]Please specify a model ID or path.[/red]")
@@ -673,7 +676,7 @@ def benchmark(model_id, gsm8k, gsm8k_limit, perplexity, output):
     )
 
     from .utils import print as rprint
-    rprint(format_benchmark_json(result) if output == "json" else format_benchmark_table(result))
+    rprint(fmt_json(result) if output == "json" else fmt_table(result))
 
 
 @cli.group()
@@ -696,8 +699,8 @@ def steer_train(model_id, output, layers, batch_size):
 
     settings = Settings(model=model_id, _cli_parse_args=False)
     model_wrapper = Model(settings)
-    harmless = load_prompts(settings.good_evaluation_prompts)
-    harmful = load_prompts(settings.bad_evaluation_prompts)
+    harmless = load_prompts(settings, settings.good_evaluation_prompts)
+    harmful = load_prompts(settings, settings.bad_evaluation_prompts)
 
     parsed_layers = [int(x) for x in layers.split(",")] if layers else None
     base_model = model_wrapper.model
@@ -799,8 +802,8 @@ def compare(model_id, gsm8k, gsm8k_limit, perplexity, steering_multiplier, n_tri
     from .model import Model
     from .config import Settings
     from .evaluator import Evaluator
-    from .benchmark import run_benchmark, format_benchmark_table, format_benchmark_json
-    from .steering import train_steering_vector_from_prompts, save_steering_vector, load_steering_vector
+    from .benchmark import run_benchmark
+    from .steering import train_steering_vector_from_prompts
     from .compare import format_comparison_table, format_comparison_json
     from .utils import load_prompts, print as rprint
 
@@ -876,13 +879,12 @@ def check_memory_requirements():
     """Suggest quantization if VRAM is low."""
     try:
         import torch
-        import psutil
         if torch.cuda.is_available():
             vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             if vram < 8:
                 print("[bold yellow]⚠️ Low VRAM Detected![/]")
                 print("[dim]Suggesting 4-bit or 8-bit loading to prevent OOM errors.[/]")
-    except:
+    except Exception:
         pass
 
 def main():
