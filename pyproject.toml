@@ -68,6 +68,9 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
+markers = [
+    "integration: tests requiring real model downloads (GPT-2, ~5-8s)",
+]
 
 [project.urls]
 Homepage = "https://github.com/AssemSabry/Shade"
