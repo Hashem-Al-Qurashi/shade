@@ -429,13 +429,11 @@ class Model:
                     layer_refusal_direction = refusal_direction
 
                 for module in modules:
-                    # FIXME: This cast is potentially invalid, because the program logic
-                    #        does not guarantee that the module is of type Linear, and in fact
-                    #        the retrieved modules might not conform to the interface assumed
-                    #        below (though they do in practice). However, this is difficult
-                    #        to fix cleanly, because get_layer_modules is called twice on
-                    #        different model configurations, and PEFT employs different
-                    #        module types depending on the chosen quantization.
+                    if not isinstance(module, Linear):
+                        raise TypeError(
+                            f"Expected Linear module, got {type(module).__name__}. "
+                            "This model architecture may not be supported for abliteration."
+                        )
                     module = cast(Linear, module)
 
                     # LoRA abliteration: delta W = -lambda * v * (v^T W)
@@ -447,11 +445,12 @@ class Model:
                     v = layer_refusal_direction.to(module.weight.device)
 
                     # Get W (dequantize if necessary).
-                    #
-                    # FIXME: This cast is valid only under the assumption that the original
-                    #        module wrapped by the LoRA adapter has a weight attribute.
-                    #        See the comment above for why this is currently not guaranteed.
-                    base_weight = cast(Tensor, module.base_layer.weight)
+                    base_layer = module.base_layer
+                    if not hasattr(base_layer, "weight"):
+                        raise AttributeError(
+                            f"LoRA base layer {type(base_layer).__name__} has no weight attribute."
+                        )
+                    base_weight = cast(Tensor, base_layer.weight)
                     quant_state = getattr(base_weight, "quant_state", None)
 
                     if quant_state is None:
@@ -564,8 +563,8 @@ class Model:
             return_token_type_ids=False,
         ).to(self.model.device)
 
-        # FIXME: The type checker has been disabled here because of the extremely complex
-        #        interplay between different generate() signatures and dynamic delegation.
+        # Type checker disabled: HuggingFace generate() uses dynamic dispatch that
+        # cannot be modeled by static type checkers.
         outputs = self.model.generate(
             **inputs,
             **kwargs,
@@ -720,8 +719,8 @@ class Model:
             skip_special_tokens=True,
         )
 
-        # FIXME: The type checker has been disabled here because of the extremely complex
-        #        interplay between different generate() signatures and dynamic delegation.
+        # Type checker disabled: HuggingFace generate() uses dynamic dispatch that
+        # cannot be modeled by static type checkers.
         outputs = self.model.generate(
             **inputs,
             streamer=streamer,
