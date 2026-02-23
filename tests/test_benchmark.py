@@ -204,3 +204,20 @@ class TestComputeParetoFrontier:
         points = np.array([[1, 10.0], [5, 5.0], [10, 1.0]])
         mask = compute_pareto_frontier_2d(points)
         assert mask.all()
+
+
+class TestDecomposeDirection:
+    def test_returns_top_features(self):
+        import torch
+        from unittest.mock import MagicMock
+        from shade.sae_analysis import decompose_direction_into_features
+
+        # Mock: refusal direction is a random vector
+        direction = torch.randn(2304)  # Gemma 2B hidden dim
+        # Mock SAE with encode method
+        mock_sae = MagicMock()
+        mock_sae.encode.return_value = torch.randn(1, 1, 16384)  # 16K features
+
+        features = decompose_direction_into_features(direction, mock_sae, top_k=10)
+        assert len(features) == 10
+        assert all("index" in f and "activation" in f for f in features)
