@@ -178,3 +178,29 @@ class TestFormatComparisonJson:
         ]
         parsed = json.loads(format_comparison_json(results))
         assert len(parsed["results"]) == 1
+
+
+import numpy as np
+
+
+class TestComputeParetoFrontier:
+    def test_simple_frontier(self):
+        from shade.pareto import compute_pareto_frontier_2d
+
+        # 4 points: (refusals, kl). Minimizing both.
+        points = np.array([
+            [10, 0.5],   # Pareto (low refusals, high kl)
+            [50, 0.1],   # Pareto (high refusals, low kl)
+            [30, 0.3],   # Dominated by a mix
+            [10, 0.1],   # Pareto (best on both!)
+        ])
+        mask = compute_pareto_frontier_2d(points)
+        assert mask[3] == True   # dominates everything  # noqa: E712
+        # Point 2 (30, 0.3) is dominated by point 3 (10, 0.1)
+        assert mask[2] == False  # noqa: E712
+
+    def test_all_pareto(self):
+        from shade.pareto import compute_pareto_frontier_2d
+        points = np.array([[1, 10.0], [5, 5.0], [10, 1.0]])
+        mask = compute_pareto_frontier_2d(points)
+        assert mask.all()
