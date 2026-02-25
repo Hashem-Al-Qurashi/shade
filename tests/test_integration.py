@@ -11,10 +11,15 @@ from __future__ import annotations
 
 import math
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 import torch
+
+# Root of the repo — used for saving baselines
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BASELINES_DIR = REPO_ROOT / "results" / "baselines"
 
 pytestmark = pytest.mark.integration
 
@@ -293,3 +298,82 @@ class TestParetoWithRealisticData:
         # Last 2 should be dominated
         assert not mask[4], "Point (50, 0.2) should be dominated"
         assert not mask[5], "Point (30, 0.3) should be dominated"
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Save baseline results and regression check
+# ---------------------------------------------------------------------------
+
+
+class TestBaselinePersistence:
+    """Save real GPT-2 metrics as a baseline and check for regressions."""
+
+    BASELINE_PATH = BASELINES_DIR / "gpt2_baseline.json"
+
+    def test_save_baseline(self, gpt2):
+        """Compute real metrics and save as baseline JSON."""
+        from shade.benchmark import BenchmarkResult, compute_perplexity
+        from shade.results import save_result
+
+        model, tokenizer = gpt2
+        texts = [
+            "The quick brown fox jumps over the lazy dog.",
+            "Machine learning is a field of artificial intelligence.",
+            "The president gave a speech about the economy.",
+        ]
+        ppl = compute_perplexity(model, tokenizer, texts)
+
+        result = BenchmarkResult(
+            model_name="gpt2",
+            refusals=0,
+            total_prompts=len(texts),
+            refusal_rate=0.0,
+            kl_divergence=0.0,
+            gsm8k_accuracy=None,
+            gsm8k_total=None,
+            perplexity=ppl,
+        )
+
+        save_result(result, self.BASELINE_PATH)
+        assert self.BASELINE_PATH.exists(), "Baseline file should be created"
+
+        # Verify it's valid JSON and round-trips correctly
+        from shade.results import load_result
+
+        loaded = load_result(self.BASELINE_PATH)
+        assert loaded.model_name == "gpt2"
+        assert loaded.perplexity == pytest.approx(ppl)
+
+    def test_regression_check_against_baseline(self, gpt2):
+        """If a baseline exists, recompute and compare within tolerance."""
+        from shade.benchmark import BenchmarkResult, compute_perplexity
+        from shade.results import compare_baseline, load_result
+
+        if not self.BASELINE_PATH.exists():
+            pytest.skip("No baseline file — run test_save_baseline first")
+
+        baseline = load_result(self.BASELINE_PATH)
+        model, tokenizer = gpt2
+        texts = [
+            "The quick brown fox jumps over the lazy dog.",
+            "Machine learning is a field of artificial intelligence.",
+            "The president gave a speech about the economy.",
+        ]
+        ppl = compute_perplexity(model, tokenizer, texts)
+
+        current = BenchmarkResult(
+            model_name="gpt2",
+            refusals=0,
+            total_prompts=len(texts),
+            refusal_rate=0.0,
+            kl_divergence=0.0,
+            gsm8k_accuracy=None,
+            gsm8k_total=None,
+            perplexity=ppl,
+        )
+
+        issues = compare_baseline(current, baseline, tolerance=0.1)
+        assert len(issues) == 0, (
+            f"Regression detected vs baseline:\n"
+            + "\n".join(f"  - {i}" for i in issues)
+        )
