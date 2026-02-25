@@ -34,11 +34,13 @@ def extract_optuna_trial_data(checkpoint_path: str) -> dict:
 
     Returns dict with keys: refusals, kl, trial_numbers.
     """
+    import optuna
     from optuna.storages.journal import (
-        JournalFileBackend, JournalFileOpenLock, JournalStorage,
+        JournalFileBackend,
+        JournalFileOpenLock,
+        JournalStorage,
     )
     from optuna.trial import TrialState
-    import optuna
 
     lock = JournalFileOpenLock(checkpoint_path)
     backend = JournalFileBackend(checkpoint_path, lock_obj=lock)
@@ -84,8 +86,10 @@ def run_steering_sweep(
                 logprobs = model.get_logprobs_batched(evaluator.good_prompts)
 
         kl = F.kl_div(
-            logprobs, evaluator.base_logprobs,
-            reduction="batchmean", log_target=True,
+            logprobs,
+            evaluator.base_logprobs,
+            reduction="batchmean",
+            log_target=True,
         ).item()
         results["refusals"].append(refusals)
         results["kl"].append(kl)
@@ -117,18 +121,37 @@ def plot_pareto_frontier(
     ax1.scatter(abl_kl, abl_ref, c="royalblue", alpha=0.25, s=30)
     pts = np.column_stack([abl_kl, abl_ref])
     mask = compute_pareto_frontier_2d(pts)
-    ax1.scatter(abl_kl[mask], abl_ref[mask], c="royalblue", s=80,
-                edgecolors="navy", lw=1.5, label="Abliteration Pareto")
+    ax1.scatter(
+        abl_kl[mask],
+        abl_ref[mask],
+        c="royalblue",
+        s=80,
+        edgecolors="navy",
+        lw=1.5,
+        label="Abliteration Pareto",
+    )
     pidx = np.where(mask)[0][np.argsort(abl_kl[mask])]
     ax1.plot(abl_kl[pidx], abl_ref[pidx], c="royalblue", lw=2)
 
-    ax1.scatter(steer_kl, steer_ref, c="darkorange", s=80,
-                edgecolors="saddlebrown", lw=1.5, label="Steering")
+    ax1.scatter(
+        steer_kl,
+        steer_ref,
+        c="darkorange",
+        s=80,
+        edgecolors="saddlebrown",
+        lw=1.5,
+        label="Steering",
+    )
     sidx = np.argsort(steer_kl)
     ax1.plot(steer_kl[sidx], steer_ref[sidx], c="darkorange", lw=2, ls="--")
     for i, m in enumerate(steering_data["multipliers"]):
-        ax1.annotate(f"x{m}", (steer_kl[i], steer_ref[i]),
-                     textcoords="offset points", xytext=(8, 5), fontsize=8)
+        ax1.annotate(
+            f"x{m}",
+            (steer_kl[i], steer_ref[i]),
+            textcoords="offset points",
+            xytext=(8, 5),
+            fontsize=8,
+        )
 
     ax1.set_xlabel("KL Divergence")
     ax1.set_ylabel(f"Refusals (out of {total_prompts})")
@@ -145,17 +168,34 @@ def plot_pareto_frontier(
     ax2.scatter(abl_x, abl_y, c="royalblue", alpha=0.25, s=30)
     neg_pts = np.column_stack([-abl_x, -abl_y])
     mask2 = compute_pareto_frontier_2d(neg_pts)
-    ax2.scatter(abl_x[mask2], abl_y[mask2], c="royalblue", s=80,
-                edgecolors="navy", lw=1.5, label="Abliteration Pareto")
-    ax2.scatter(steer_x, steer_y, c="darkorange", s=80,
-                edgecolors="saddlebrown", lw=1.5, label="Steering")
+    ax2.scatter(
+        abl_x[mask2],
+        abl_y[mask2],
+        c="royalblue",
+        s=80,
+        edgecolors="navy",
+        lw=1.5,
+        label="Abliteration Pareto",
+    )
+    ax2.scatter(
+        steer_x,
+        steer_y,
+        c="darkorange",
+        s=80,
+        edgecolors="saddlebrown",
+        lw=1.5,
+        label="Steering",
+    )
     ax2.set_xlabel("Refusal Removal Rate")
     ax2.set_ylabel("Capability Preservation")
     ax2.set_title("Normalized (upper-right = optimal)")
     ax2.legend(loc="lower left")
     ax2.grid(alpha=0.3)
 
-    fig.suptitle(f"Abliteration vs Steering{' — ' + model_name if model_name else ''}", fontweight="bold")
+    fig.suptitle(
+        f"Abliteration vs Steering{' — ' + model_name if model_name else ''}",
+        fontweight="bold",
+    )
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")

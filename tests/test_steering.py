@@ -3,17 +3,26 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 import torch
 
 _STUB_MODULES = [
-    "peft", "transformers", "transformers.generation", "transformers.utils",
-    "accelerate", "accelerate.utils", "bitsandbytes",
-    "questionary", "rich", "rich.console", "rich.text", "rich.table",
-    "rich.panel", "psutil", "steering_vectors",
+    "peft",
+    "transformers",
+    "transformers.generation",
+    "transformers.utils",
+    "accelerate",
+    "accelerate.utils",
+    "bitsandbytes",
+    "questionary",
+    "rich",
+    "rich.console",
+    "rich.text",
+    "rich.table",
+    "rich.panel",
+    "psutil",
+    "steering_vectors",
 ]
 for _name in _STUB_MODULES:
     if _name not in sys.modules:
@@ -42,7 +51,7 @@ class TestBuildContrastivePairs:
 
 class TestSteeringIO:
     def test_save_and_load(self, tmp_path):
-        from shade.steering import save_steering_vector, load_steering_vector
+        from shade.steering import load_steering_vector, save_steering_vector
 
         data = {"activations": torch.randn(3, 10)}
         path = tmp_path / "test.pt"

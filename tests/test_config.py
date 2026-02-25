@@ -9,7 +9,12 @@ import textwrap
 
 import pytest
 
-from shade.config import DatasetSpecification, QuantizationMethod, RowNormalization, Settings
+from shade.config import (
+    DatasetSpecification,
+    QuantizationMethod,
+    RowNormalization,
+    Settings,
+)
 
 
 class TestQuantizationMethod:
@@ -154,7 +159,9 @@ class TestSettingsRefusalMarkers:
 
     def test_markers_are_lowercase(self, default_settings):
         for marker in default_settings.refusal_markers:
-            assert marker == marker.lower(), f"Refusal marker {marker!r} is not lowercase"
+            assert marker == marker.lower(), (
+                f"Refusal marker {marker!r} is not lowercase"
+            )
 
 
 class TestSettingsCustomValues:

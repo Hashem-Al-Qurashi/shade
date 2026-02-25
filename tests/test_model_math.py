@@ -179,13 +179,13 @@ class TestWeightKernel:
         # Monotonically increasing from layer 8 to 16
         for i in range(8, 16):
             assert weights[i] < weights[i + 1], (
-                f"Not increasing at layer {i}: {weights[i]} >= {weights[i+1]}"
+                f"Not increasing at layer {i}: {weights[i]} >= {weights[i + 1]}"
             )
 
         # Monotonically decreasing from layer 16 to 24
         for i in range(16, 24):
             assert weights[i] > weights[i + 1], (
-                f"Not decreasing at layer {i}: {weights[i]} <= {weights[i+1]}"
+                f"Not decreasing at layer {i}: {weights[i]} <= {weights[i + 1]}"
             )
 
 
@@ -339,9 +339,7 @@ class TestDirectionComputation:
         for idx in [0.0, 1.0, 2.5, 3.7]:
             result = self._compute_direction(dirs, direction_index=idx)
             norm = torch.linalg.vector_norm(result).item()
-            assert norm == pytest.approx(1.0, abs=1e-5), (
-                f"Norm {norm} at index {idx}"
-            )
+            assert norm == pytest.approx(1.0, abs=1e-5), f"Norm {norm} at index {idx}"
 
     def test_mean_difference_direction(self):
         """Verify that mean-difference of two groups gives a meaningful direction.
@@ -357,7 +355,7 @@ class TestDirectionComputation:
         harmful = harmless.clone()
         harmful[:, 0] += 5.0  # shift dimension 0
 
-        direction = (harmful.mean(dim=0) - harmless.mean(dim=0))
+        direction = harmful.mean(dim=0) - harmless.mean(dim=0)
         direction = F.normalize(direction, p=2, dim=0)
 
         # The direction should point primarily along dimension 0

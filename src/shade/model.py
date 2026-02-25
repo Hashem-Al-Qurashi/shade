@@ -4,50 +4,56 @@ import math
 import os
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Type, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import torch
-import torch.nn.functional as F
 import torch.linalg as LA
-from torch import Tensor, LongTensor, FloatTensor
+import torch.nn.functional as F
+from peft import LoraConfig, PeftModel, get_peft_model
+from torch import FloatTensor, LongTensor, Tensor
 from torch.nn import Linear, Module, ModuleList
-from peft import get_peft_model, LoraConfig, PeftModel
 from transformers import (
     AutoTokenizer,
+    BatchEncoding,
+    BitsAndBytesConfig,
     PreTrainedModel,
     PreTrainedTokenizerBase,
-    BitsAndBytesConfig,
     TextStreamer,
-    BatchEncoding,
 )
 from transformers.generation import GenerateDecoderOnlyOutput
 
-from .config import RowNormalization, QuantizationMethod, Settings
-from .utils import empty_cache, batchify, Prompt, print
+from .config import QuantizationMethod, RowNormalization, Settings
+from .utils import Prompt, batchify, empty_cache, print
 
 if TYPE_CHECKING:
-    from transformers import AutoModelForCausalLM, AutoModelForImageTextToText
+    pass
 
 # Heavy imports are moved inside methods to prevent hangs during startup.
+
 
 def get_model_class(
     model: str,
 ) -> Any:
     import os
-    from transformers import PretrainedConfig, AutoModelForImageTextToText, AutoModelForCausalLM
-    
+
+    from transformers import (
+        AutoModelForCausalLM,
+        AutoModelForImageTextToText,
+        PretrainedConfig,
+    )
+
     if os.path.exists(model):
         model = os.path.abspath(model).replace("\\", "/")
-        
-    print(f"[dim]* Identifying model architecture...[/]")
+
+    print("[dim]* Identifying model architecture...[/]")
     try:
         # PretrainedConfig.get_config_dict returns a tuple (config_dict, kwargs)
         config_dict, _ = PretrainedConfig.get_config_dict(model)
-        
+
         if any([("vision_config" in key) for key in config_dict.keys()]):
             return AutoModelForImageTextToText
         return AutoModelForCausalLM
-    except Exception as e:
+    except Exception:
         # Fallback to CausalLM if config can't be read, or re-raise if it's a critical error
         return AutoModelForCausalLM
 
@@ -76,9 +82,9 @@ class Model:
         model_path = settings.model
         if os.path.exists(model_path):
             model_path = os.path.abspath(model_path)
-            
+
         model_class = get_model_class(model_path)
-        
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path,
             trust_remote_code=settings.trust_remote_code,
@@ -113,9 +119,9 @@ class Model:
 
                 extra_kwargs = {
                     "low_cpu_mem_usage": True,
-                    "local_files_only": True if os.path.exists(model_path) else False
+                    "local_files_only": True if os.path.exists(model_path) else False,
                 }
-                
+
                 if quantization_config is not None:
                     extra_kwargs["quantization_config"] = quantization_config
 
@@ -205,10 +211,12 @@ class Model:
         """
         if self.settings.quantization == QuantizationMethod.BNB_4BIT:
             try:
-                import bitsandbytes as bnb
+                import bitsandbytes as bnb  # noqa: F401
             except ImportError:
-                raise ImportError("bitsandbytes is required for 4-bit quantization. Run 'pip install bitsandbytes'.")
-            
+                raise ImportError(
+                    "bitsandbytes is required for 4-bit quantization. Run 'pip install bitsandbytes'."
+                )
+
             # BitsAndBytesConfig expects a torch.dtype, not a string.
             if dtype == "auto":
                 compute_dtype = torch.bfloat16
@@ -457,10 +465,12 @@ class Model:
                         W = base_weight.to(torch.float32)
                     else:
                         try:
-                            import bitsandbytes as bnb
+                            import bitsandbytes as bnb  # noqa: F401
                         except ImportError:
-                            raise ImportError("bitsandbytes is required for 4-bit quantization.")
-                        
+                            raise ImportError(
+                                "bitsandbytes is required for 4-bit quantization."
+                            )
+
                         # 4-bit quantization.
                         # This cast is always valid. Type inference fails here because the
                         # bnb.functional module is not found by ty for some reason.

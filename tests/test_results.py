@@ -13,9 +13,14 @@ from shade.results import compare_baseline, load_result, save_result
 class TestSaveAndLoad:
     def test_roundtrip(self, tmp_path):
         result = BenchmarkResult(
-            model_name="gpt2", refusals=5, total_prompts=100,
-            refusal_rate=0.05, kl_divergence=0.02,
-            gsm8k_accuracy=0.45, gsm8k_total=50, perplexity=89.0,
+            model_name="gpt2",
+            refusals=5,
+            total_prompts=100,
+            refusal_rate=0.05,
+            kl_divergence=0.02,
+            gsm8k_accuracy=0.45,
+            gsm8k_total=50,
+            perplexity=89.0,
         )
         path = tmp_path / "result.json"
         save_result(result, path)
@@ -28,9 +33,14 @@ class TestSaveAndLoad:
 
     def test_roundtrip_with_none_fields(self, tmp_path):
         result = BenchmarkResult(
-            model_name="test", refusals=10, total_prompts=50,
-            refusal_rate=0.2, kl_divergence=0.1,
-            gsm8k_accuracy=None, gsm8k_total=None, perplexity=None,
+            model_name="test",
+            refusals=10,
+            total_prompts=50,
+            refusal_rate=0.2,
+            kl_divergence=0.1,
+            gsm8k_accuracy=None,
+            gsm8k_total=None,
+            perplexity=None,
         )
         path = tmp_path / "result.json"
         save_result(result, path)

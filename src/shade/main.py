@@ -10,8 +10,9 @@ from dataclasses import asdict
 from importlib.metadata import version
 from os.path import commonprefix
 from pathlib import Path
-from .model import Model
+
 from .config import Settings
+from .model import Model
 from .utils import (
     empty_cache,
     format_duration,
@@ -28,10 +29,12 @@ from .utils import (
 
 
 def obtain_merge_strategy(settings: Settings) -> str | None:
+    import torch
     from questionary import Choice
+
     from .config import QuantizationMethod
     from .model import get_model_class
-    import torch
+
     """
     Prompts the user for how to proceed with saving the model.
     Provides info to the user if the model is quantized on memory use.
@@ -107,10 +110,7 @@ def obtain_merge_strategy(settings: Settings) -> str | None:
 
 def run():
     # Defer heavy logic and imports until absolutely necessary.
-    import os
-    import sys
-    from importlib.metadata import version
-    
+
     # Custom ASCII Art for "SHADE"
     print(f"[cyan]█▀▀░█░█░█▀█░█▀▄░█▀▀[/]  v{version('shade-ai')}")
     print("[cyan]░▀█░█▀█░█▀█░█░█░█▀▀[/]")
@@ -121,7 +121,7 @@ def run():
 
     print("[dim]Loading engine...[/]")
     print("[dim]  * Initializing memory manager...[/]")
-    
+
     # Enable expandable segments to reduce memory fragmentation on multi-GPU setups.
     if (
         "PYTORCH_ALLOC_CONF" not in os.environ
@@ -130,38 +130,11 @@ def run():
         os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
     print("[dim]  * Loading PyTorch and dependencies...[/]")
+    import huggingface_hub
+    import optuna
     import torch
     import torch.nn.functional as F
     import transformers
-    import optuna
-    from optuna import Trial
-    from optuna.exceptions import ExperimentalWarning, TrialPruned
-    from optuna.samplers import TPESampler
-    from .utils import (
-        batchify,
-        check_disk_space,
-        empty_cache,
-        format_duration,
-        get_readme_intro,
-        get_trial_parameters,
-        is_notebook,
-        load_prompts,
-        print_disclaimer,
-        prompt_path,
-        prompt_select,
-        prompt_text,
-    )
-    from optuna.storages.journal import JournalFileBackend, JournalFileOpenLock, JournalStorage
-    from optuna.study import StudyDirection
-    from optuna.trial import TrialState
-    import huggingface_hub
-    from huggingface_hub import ModelCard, ModelCardData
-    import click
-    from questionary import Choice
-    from pydantic import ValidationError
-    from .analyzer import Analyzer
-    from .evaluator import Evaluator
-    from .model import AbliterationParameters, Model
     from accelerate.utils import (
         is_mlu_available,
         is_musa_available,
@@ -169,13 +142,37 @@ def run():
         is_sdaa_available,
         is_xpu_available,
     )
-    
+    from huggingface_hub import ModelCard, ModelCardData
+    from optuna import Trial
+    from optuna.exceptions import ExperimentalWarning, TrialPruned
+    from optuna.samplers import TPESampler
+    from optuna.storages.journal import (
+        JournalFileBackend,
+        JournalFileOpenLock,
+        JournalStorage,
+    )
+    from optuna.study import StudyDirection
+    from optuna.trial import TrialState
+    from pydantic import ValidationError
+    from questionary import Choice
+
+    from .analyzer import Analyzer
+    from .evaluator import Evaluator
+    from .model import AbliterationParameters
+    from .utils import (
+        check_disk_space,
+        print_disclaimer,
+        prompt_select,
+    )
+
     # Check for Hugging Face login on first run
     token = huggingface_hub.get_token()
     if not token:
         print("[bold yellow]🔐 Hugging Face Authentication Required[/]")
         print("To download and use models, you need a Hugging Face API token.")
-        print("Create one at: [blue underline]https://huggingface.co/settings/tokens[/]")
+        print(
+            "Create one at: [blue underline]https://huggingface.co/settings/tokens[/]"
+        )
         print()
         token = prompt_text("Enter your Hugging Face Token", unsafe=True)
         if token:
@@ -288,26 +285,37 @@ def run():
             # No previous study, we need to pick a model
             print("[bold cyan]Welcome to Shade AI![/]")
             print("Please choose how to load a model:")
-            
+
             load_choice = prompt_select(
                 "Model Selection:",
                 [
-                    Choice(title="📦 Choose from my Library (Previously saved models)", value="library"),
-                    Choice(title="📁 Select a local model from my computer", value="local"),
+                    Choice(
+                        title="📦 Choose from my Library (Previously saved models)",
+                        value="library",
+                    ),
+                    Choice(
+                        title="📁 Select a local model from my computer", value="local"
+                    ),
                     Choice(title="☁️ Download from Hugging Face by ID", value="hf_id"),
                     Choice(title="✨ Choose from suggested models", value="suggested"),
-                    Choice(title="⚙️ Change Download Directory (Storage)", value="storage"),
-                    Choice(title="Exit", value="exit")
-                ]
+                    Choice(
+                        title="⚙️ Change Download Directory (Storage)", value="storage"
+                    ),
+                    Choice(title="Exit", value="exit"),
+                ],
             )
-            
+
             if load_choice == "exit":
                 return
-                
+
             selected_model = None
             if load_choice == "storage":
-                print(f"[bold]Current Download Directory:[/] {os.environ.get('HF_HOME', 'Default (Users folder)')}")
-                new_path = prompt_path("Select new download directory (must be an empty folder or existing cache):")
+                print(
+                    f"[bold]Current Download Directory:[/] {os.environ.get('HF_HOME', 'Default (Users folder)')}"
+                )
+                new_path = prompt_path(
+                    "Select new download directory (must be an empty folder or existing cache):"
+                )
                 if new_path:
                     os.environ["HF_HOME"] = new_path
                     print(f"[green]✓ Download directory set to:[/] {new_path}")
@@ -319,41 +327,66 @@ def run():
                 if not models_dir.exists() or not any(models_dir.iterdir()):
                     print("[yellow]Your library is empty.[/]")
                     continue
-                saved_models = [Choice(title=d.name, value=str(d.absolute())) for d in models_dir.iterdir() if d.is_dir()]
-                selected_model = prompt_select("Select a model from your library:", saved_models)
+                saved_models = [
+                    Choice(title=d.name, value=str(d.absolute()))
+                    for d in models_dir.iterdir()
+                    if d.is_dir()
+                ]
+                selected_model = prompt_select(
+                    "Select a model from your library:", saved_models
+                )
 
             elif load_choice == "local":
                 print("[dim]Opening file explorer...[/]")
                 try:
                     import tkinter as tk
                     from tkinter import filedialog
+
                     root = tk.Tk()
                     root.withdraw()
                     root.attributes("-topmost", True)
-                    selected_model = filedialog.askdirectory(title="Select Model Directory")
+                    selected_model = filedialog.askdirectory(
+                        title="Select Model Directory"
+                    )
                     root.destroy()
                     if not selected_model:
                         print("[yellow]No directory selected.[/]")
                         continue
                 except Exception as e:
                     print(f"[red]Could not open file explorer: {e}[/]")
-                    selected_model = prompt_text("Please enter the absolute path to your model directory:")
-            
+                    selected_model = prompt_text(
+                        "Please enter the absolute path to your model directory:"
+                    )
+
             elif load_choice == "hf_id":
-                selected_model = prompt_text("Enter Hugging Face Model ID (e.g., meta-llama/Llama-2-7b-hf):")
-            
+                selected_model = prompt_text(
+                    "Enter Hugging Face Model ID (e.g., meta-llama/Llama-2-7b-hf):"
+                )
+
             elif load_choice == "suggested":
                 suggested = [
-                    Choice(title="Qwen 2.5 1.5B Instruct (Fastest, High Quality)", value="Qwen/Qwen2.5-1.5B-Instruct"),
-                    Choice(title="Llama 3.2 3B Instruct (The Standard)", value="meta-llama/Llama-3.2-3B-Instruct"),
-                    Choice(title="Phi-3.5 Mini Instruct (Very Small)", value="microsoft/Phi-3.5-mini-instruct"),
-                    Choice(title="Mistral 7B v0.3 (Powerful)", value="mistralai/Mistral-7B-Instruct-v0.3"),
+                    Choice(
+                        title="Qwen 2.5 1.5B Instruct (Fastest, High Quality)",
+                        value="Qwen/Qwen2.5-1.5B-Instruct",
+                    ),
+                    Choice(
+                        title="Llama 3.2 3B Instruct (The Standard)",
+                        value="meta-llama/Llama-3.2-3B-Instruct",
+                    ),
+                    Choice(
+                        title="Phi-3.5 Mini Instruct (Very Small)",
+                        value="microsoft/Phi-3.5-mini-instruct",
+                    ),
+                    Choice(
+                        title="Mistral 7B v0.3 (Powerful)",
+                        value="mistralai/Mistral-7B-Instruct-v0.3",
+                    ),
                 ]
                 selected_model = prompt_select("Select a suggested model:", suggested)
-                
+
             if not selected_model:
                 continue
-                
+
             settings = Settings(model=selected_model)
             # Re-run loop to initialize storage for the selected model
             continue
@@ -362,7 +395,10 @@ def run():
         study_checkpoint_file = os.path.join(
             settings.study_checkpoint_dir,
             "".join(
-                [(c if (c.isalnum() or c in ["_", "-"]) else "--") for c in settings.model]
+                [
+                    (c if (c.isalnum() or c in ["_", "-"]) else "--")
+                    for c in settings.model
+                ]
             )
             + ".jsonl",
         )
@@ -380,17 +416,31 @@ def run():
         # 3. Handle Resume/Restart menu if a study exists
         if existing_study is not None and settings.evaluate_model is None:
             choices = [
-                Choice(title="Start from scratch (Start a new process)", value="restart")
+                Choice(
+                    title="Start from scratch (Start a new process)", value="restart"
+                )
             ]
             if existing_study.user_attrs.get("finished", False):
-                choices.insert(0, Choice(title="Show results from previous session (Export/Chat)", value="continue"))
+                choices.insert(
+                    0,
+                    Choice(
+                        title="Show results from previous session (Export/Chat)",
+                        value="continue",
+                    ),
+                )
             else:
-                choices.insert(0, Choice(title="Continue the previous run (Resume interrupted process)", value="continue"))
+                choices.insert(
+                    0,
+                    Choice(
+                        title="Continue the previous run (Resume interrupted process)",
+                        value="continue",
+                    ),
+                )
             choices.append(Choice(title="Exit", value="exit"))
 
             print()
             choice = prompt_select("How would you like to proceed?", choices)
-            
+
             if choice == "exit":
                 return
             elif choice == "restart":
@@ -398,14 +448,16 @@ def run():
                     os.unlink(study_checkpoint_file)
                 continue
             elif choice == "continue":
-                settings = Settings.model_validate_json(existing_study.user_attrs["settings"])
+                settings = Settings.model_validate_json(
+                    existing_study.user_attrs["settings"]
+                )
                 break
         else:
             # No existing study or in evaluation mode, proceed with currently selected model/settings
             break
 
     # Final pre-run checks
-    check_disk_space(required_gb=15.0) # Check for at least 15GB free
+    check_disk_space(required_gb=15.0)  # Check for at least 15GB free
 
     model = Model(settings)
     print()
@@ -993,6 +1045,7 @@ def run():
                         case "Launch Web Chat (Browser UI)":
                             try:
                                 from .server import start_server
+
                                 print("[bold green]Launching Web UI...[/]")
                                 start_server(model, settings)
                             except Exception as e:
@@ -1004,6 +1057,7 @@ def run():
 
 def main():
     from rich.traceback import install
+
     # Install Rich traceback handler.
     install()
 

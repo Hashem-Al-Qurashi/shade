@@ -55,11 +55,16 @@ def compute_refusal_direction(
     Returns:
         Normalized refusal direction vector, shape (d_model,).
     """
+
     def get_activations(prompts: list[str]) -> torch.Tensor:
         acts = []
         for prompt in prompts:
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
-            inputs = {k: v.to(next(model.parameters()).device) for k, v in inputs.items()}
+            inputs = tokenizer(
+                prompt, return_tensors="pt", truncation=True, max_length=256
+            )
+            inputs = {
+                k: v.to(next(model.parameters()).device) for k, v in inputs.items()
+            }
             with torch.no_grad():
                 outputs = model(**inputs, output_hidden_states=True)
             # Take last token's hidden state at target layer
@@ -141,7 +146,11 @@ def run_sae_analysis(
         Dict with direction, features, and metadata.
     """
     direction = compute_refusal_direction(
-        model, tokenizer, harmful_prompts, harmless_prompts, layer_index,
+        model,
+        tokenizer,
+        harmful_prompts,
+        harmless_prompts,
+        layer_index,
     )
 
     sae = load_sae_for_model(model_name, layer_index)

@@ -13,19 +13,14 @@ import math
 import numpy as np
 import pytest
 import torch
-import torch.nn.functional as F
 
 from shade.benchmark import (
     BenchmarkResult,
     compute_perplexity,
-    extract_gsm8k_answer,
-    format_benchmark_json,
-    format_benchmark_table,
 )
 from shade.compare import format_comparison_json, format_comparison_table
 from shade.pareto import compute_pareto_frontier_2d
 from shade.sae_analysis import decompose_direction_into_features
-
 
 # ---------------------------------------------------------------------------
 # Perplexity: mathematical correctness
@@ -52,7 +47,9 @@ class TestPerplexityMath:
 
         # A tokenizer that returns seq_len tokens
         class FakeTokenizer:
-            def __call__(self, text, return_tensors=None, truncation=None, max_length=None):
+            def __call__(
+                self, text, return_tensors=None, truncation=None, max_length=None
+            ):
                 return {"input_ids": torch.randint(0, V, (1, seq_len))}
 
         ppl = compute_perplexity(UniformModel(), FakeTokenizer(), ["anything"])
@@ -62,7 +59,6 @@ class TestPerplexityMath:
     def test_perfect_prediction_gives_one(self):
         """If model always predicts the correct next token, perplexity ~ 1.0."""
         V = 50
-        seq_len = 10
         # Fixed sequence
         token_ids = torch.tensor([[3, 7, 1, 4, 9, 2, 8, 0, 5, 6]])
 
@@ -81,7 +77,9 @@ class TestPerplexityMath:
                 return iter([torch.nn.Parameter(torch.empty(0))])
 
         class FakeTokenizer:
-            def __call__(self, text, return_tensors=None, truncation=None, max_length=None):
+            def __call__(
+                self, text, return_tensors=None, truncation=None, max_length=None
+            ):
                 return {"input_ids": token_ids}
 
         ppl = compute_perplexity(PerfectModel(), FakeTokenizer(), ["anything"])
@@ -103,7 +101,9 @@ class TestPerplexityMath:
                 return iter([torch.nn.Parameter(torch.empty(0))])
 
         class FakeTokenizer:
-            def __call__(self, text, return_tensors=None, truncation=None, max_length=None):
+            def __call__(
+                self, text, return_tensors=None, truncation=None, max_length=None
+            ):
                 return {"input_ids": torch.randint(0, V, (1, seq_len))}
 
         ppl = compute_perplexity(RandomModel(), FakeTokenizer(), ["anything"])
@@ -129,12 +129,16 @@ class TestPerplexityMath:
         call_count = 0
 
         class CountingTokenizer:
-            def __call__(self, text, return_tensors=None, truncation=None, max_length=None):
+            def __call__(
+                self, text, return_tensors=None, truncation=None, max_length=None
+            ):
                 nonlocal call_count
                 call_count += 1
                 return {"input_ids": token_ids_1 if call_count == 1 else token_ids_2}
 
-        ppl = compute_perplexity(UniformModel(), CountingTokenizer(), ["text1", "text2"])
+        ppl = compute_perplexity(
+            UniformModel(), CountingTokenizer(), ["text1", "text2"]
+        )
         assert ppl == pytest.approx(V, rel=0.01)
         assert call_count == 2
 

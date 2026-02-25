@@ -10,7 +10,6 @@ from click.testing import CliRunner
 
 from shade.cli import cli
 
-
 runner = CliRunner()
 
 

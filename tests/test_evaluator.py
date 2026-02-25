@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Stub third-party modules that aren't installed so ``shade.model`` can be
 # imported.  Do NOT mock torch — it is installed and other tests depend on it.
@@ -324,7 +323,10 @@ class TestIsRefusalPartialMatches:
         assert evaluator.is_refusal("That was done illegally.") is True
 
     def test_harmfulness_matches_harmful(self, evaluator):
-        assert evaluator.is_refusal("The harmfulness of this cannot be overstated.") is True
+        assert (
+            evaluator.is_refusal("The harmfulness of this cannot be overstated.")
+            is True
+        )
 
 
 # ------------------------------------------------------------------

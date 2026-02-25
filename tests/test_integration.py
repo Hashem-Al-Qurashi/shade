@@ -35,8 +35,7 @@ pytestmark = pytest.mark.integration
 def _restore_real_modules():
     """Remove MagicMock entries from sys.modules so real imports work."""
     mocked_names = [
-        name for name, mod in sys.modules.items()
-        if isinstance(mod, MagicMock)
+        name for name, mod in sys.modules.items() if isinstance(mod, MagicMock)
     ]
     for name in mocked_names:
         del sys.modules[name]
@@ -81,7 +80,9 @@ class TestRealPerplexity:
 
         assert isinstance(ppl, float)
         assert math.isfinite(ppl), f"Perplexity should be finite, got {ppl}"
-        assert 30 < ppl < 500, f"GPT-2 perplexity on English text should be in [30, 500], got {ppl}"
+        assert 30 < ppl < 500, (
+            f"GPT-2 perplexity on English text should be in [30, 500], got {ppl}"
+        )
 
     def test_perplexity_on_gibberish_is_higher(self, gpt2):
         """Gibberish text should have higher perplexity than English."""
@@ -120,8 +121,12 @@ class TestSteeringRoundtrip:
         ]
 
         sv = train_steering_vector(
-            model, tokenizer, pairs,
-            layers=[5, 6], batch_size=2, show_progress=False,
+            model,
+            tokenizer,
+            pairs,
+            layers=[5, 6],
+            batch_size=2,
+            show_progress=False,
         )
 
         # Save and load
@@ -150,8 +155,12 @@ class TestSteeringChangesBehavior:
         ]
 
         sv = train_steering_vector(
-            model, tokenizer, pairs,
-            layers=[5, 6], batch_size=2, show_progress=False,
+            model,
+            tokenizer,
+            pairs,
+            layers=[5, 6],
+            batch_size=2,
+            show_progress=False,
         )
 
         prompt = "How to"
@@ -165,7 +174,9 @@ class TestSteeringChangesBehavior:
         # Steered output (high multiplier to ensure visible difference)
         with sv.apply(model, multiplier=3.0):
             with torch.no_grad():
-                steered_out = model.generate(input_ids, max_new_tokens=20, do_sample=False)
+                steered_out = model.generate(
+                    input_ids, max_new_tokens=20, do_sample=False
+                )
         steered_text = tokenizer.decode(steered_out[0], skip_special_tokens=True)
 
         assert base_text != steered_text, (
@@ -183,7 +194,10 @@ class TestSteeringChangesBehavior:
 class TestFullTrainingPipeline:
     def test_build_pairs_then_train(self, gpt2):
         """Use shade's build_contrastive_pairs → train_steering_vector_from_prompts."""
-        from shade.steering import build_contrastive_pairs, train_steering_vector_from_prompts
+        from shade.steering import (
+            build_contrastive_pairs,
+            train_steering_vector_from_prompts,
+        )
         from shade.utils import Prompt
 
         model, tokenizer = gpt2
@@ -204,9 +218,13 @@ class TestFullTrainingPipeline:
 
         # Verify training works end-to-end
         sv = train_steering_vector_from_prompts(
-            model=model, tokenizer=tokenizer,
-            harmless_prompts=harmless, harmful_prompts=harmful,
-            layers=[4, 5], batch_size=2, show_progress=False,
+            model=model,
+            tokenizer=tokenizer,
+            harmless_prompts=harmless,
+            harmful_prompts=harmful,
+            layers=[4, 5],
+            batch_size=2,
+            show_progress=False,
         )
         assert sv is not None
         assert hasattr(sv, "apply"), "Steering vector should have an apply method"
@@ -249,6 +267,7 @@ class TestBenchmarkResultWithRealData:
 
         # JSON output should be parseable and contain the value
         import json
+
         parsed = json.loads(format_benchmark_json(result))
         assert parsed["perplexity"] == pytest.approx(real_ppl)
 
@@ -266,7 +285,6 @@ class TestParetoWithRealisticData:
         from shade.pareto import compute_pareto_frontier_2d
 
         # Simulate: as steering multiplier increases, refusals drop but KL rises
-        multipliers = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
         refusals = [87, 65, 40, 22, 10, 5, 3]
         kl_values = [0.0, 0.01, 0.03, 0.08, 0.15, 0.25, 0.4]
 
@@ -283,14 +301,17 @@ class TestParetoWithRealisticData:
         from shade.pareto import compute_pareto_frontier_2d
 
         # Monotonic tradeoff + 2 dominated outliers
-        points = np.array([
-            [87, 0.0],    # Pareto: highest refusals, lowest KL
-            [40, 0.03],   # Pareto
-            [10, 0.15],   # Pareto
-            [3, 0.4],     # Pareto: lowest refusals, highest KL
-            [50, 0.2],    # Dominated by (40, 0.03)
-            [30, 0.3],    # Dominated by (10, 0.15)
-        ], dtype=float)
+        points = np.array(
+            [
+                [87, 0.0],  # Pareto: highest refusals, lowest KL
+                [40, 0.03],  # Pareto
+                [10, 0.15],  # Pareto
+                [3, 0.4],  # Pareto: lowest refusals, highest KL
+                [50, 0.2],  # Dominated by (40, 0.03)
+                [30, 0.3],  # Dominated by (10, 0.15)
+            ],
+            dtype=float,
+        )
         mask = compute_pareto_frontier_2d(points)
 
         # First 4 should be Pareto
@@ -373,7 +394,6 @@ class TestBaselinePersistence:
         )
 
         issues = compare_baseline(current, baseline, tolerance=0.1)
-        assert len(issues) == 0, (
-            f"Regression detected vs baseline:\n"
-            + "\n".join(f"  - {i}" for i in issues)
+        assert len(issues) == 0, "Regression detected vs baseline:\n" + "\n".join(
+            f"  - {i}" for i in issues
         )

@@ -45,6 +45,7 @@ class TestExtractGsm8kAnswer:
 class TestComputeGsm8kAccuracy:
     def test_all_correct(self):
         from shade.benchmark import compute_gsm8k_accuracy
+
         assert compute_gsm8k_accuracy(
             ["42", "The answer is 10", "#### 7"],
             ["#### 42", "#### 10", "#### 7"],
@@ -52,6 +53,7 @@ class TestComputeGsm8kAccuracy:
 
     def test_all_wrong(self):
         from shade.benchmark import compute_gsm8k_accuracy
+
         assert compute_gsm8k_accuracy(
             ["99", "The answer is 0", "I don't know"],
             ["#### 42", "#### 10", "#### 7"],
@@ -59,6 +61,7 @@ class TestComputeGsm8kAccuracy:
 
     def test_partial(self):
         from shade.benchmark import compute_gsm8k_accuracy
+
         assert compute_gsm8k_accuracy(
             ["42", "wrong", "#### 7"],
             ["#### 42", "#### 10", "#### 7"],
@@ -66,13 +69,16 @@ class TestComputeGsm8kAccuracy:
 
     def test_empty(self):
         from shade.benchmark import compute_gsm8k_accuracy
+
         assert compute_gsm8k_accuracy([], []) == pytest.approx(0.0)
 
 
 class TestComputePerplexity:
     def test_with_mock_model(self):
-        import torch
         from unittest.mock import MagicMock
+
+        import torch
+
         from shade.benchmark import compute_perplexity
 
         mock_model = MagicMock()
@@ -96,16 +102,21 @@ class TestComputePerplexity:
         assert ppl > 0
 
 
-from dataclasses import asdict
+from dataclasses import asdict  # noqa: E402
 
 
 class TestBenchmarkResult:
     def test_fields(self):
         from shade.benchmark import BenchmarkResult
+
         r = BenchmarkResult(
-            model_name="test", refusals=12, total_prompts=100,
-            refusal_rate=0.12, kl_divergence=0.043,
-            gsm8k_accuracy=None, gsm8k_total=None,
+            model_name="test",
+            refusals=12,
+            total_prompts=100,
+            refusal_rate=0.12,
+            kl_divergence=0.043,
+            gsm8k_accuracy=None,
+            gsm8k_total=None,
             perplexity=None,
         )
         assert r.refusal_rate == pytest.approx(0.12)
@@ -113,10 +124,16 @@ class TestBenchmarkResult:
 
     def test_to_dict(self):
         from shade.benchmark import BenchmarkResult
+
         r = BenchmarkResult(
-            model_name="m", refusals=5, total_prompts=50,
-            refusal_rate=0.1, kl_divergence=0.02,
-            gsm8k_accuracy=0.45, gsm8k_total=50, perplexity=12.3,
+            model_name="m",
+            refusals=5,
+            total_prompts=50,
+            refusal_rate=0.1,
+            kl_divergence=0.02,
+            gsm8k_accuracy=0.45,
+            gsm8k_total=50,
+            perplexity=12.3,
         )
         d = asdict(r)
         assert d["perplexity"] == pytest.approx(12.3)
@@ -125,6 +142,7 @@ class TestBenchmarkResult:
 class TestFormatBenchmarkTable:
     def test_without_gsm8k(self):
         from shade.benchmark import BenchmarkResult, format_benchmark_table
+
         result = BenchmarkResult("test/model", 12, 100, 0.12, 0.043, None, None, None)
         table_str = format_benchmark_table(result)
         assert "test/model" in table_str
@@ -133,6 +151,7 @@ class TestFormatBenchmarkTable:
 
     def test_with_all_metrics(self):
         from shade.benchmark import BenchmarkResult, format_benchmark_table
+
         result = BenchmarkResult("test/model", 12, 100, 0.12, 0.043, 0.452, 50, 15.7)
         table_str = format_benchmark_table(result)
         assert "GSM8K" in table_str or "45.2" in table_str
@@ -142,14 +161,16 @@ class TestFormatBenchmarkTable:
 class TestFormatBenchmarkJson:
     def test_valid_json(self):
         import json
+
         from shade.benchmark import BenchmarkResult, format_benchmark_json
+
         result = BenchmarkResult("test/model", 12, 100, 0.12, 0.043, 0.452, 50, 15.7)
         parsed = json.loads(format_benchmark_json(result))
         assert parsed["model_name"] == "test/model"
         assert parsed["kl_divergence"] == pytest.approx(0.043)
 
 
-import json
+import json  # noqa: E402
 
 
 class TestFormatComparisonTable:
@@ -180,7 +201,7 @@ class TestFormatComparisonJson:
         assert len(parsed["results"]) == 1
 
 
-import numpy as np
+import numpy as np  # noqa: E402
 
 
 class TestComputeParetoFrontier:
@@ -188,19 +209,22 @@ class TestComputeParetoFrontier:
         from shade.pareto import compute_pareto_frontier_2d
 
         # 4 points: (refusals, kl). Minimizing both.
-        points = np.array([
-            [10, 0.5],   # Pareto (low refusals, high kl)
-            [50, 0.1],   # Pareto (high refusals, low kl)
-            [30, 0.3],   # Dominated by a mix
-            [10, 0.1],   # Pareto (best on both!)
-        ])
+        points = np.array(
+            [
+                [10, 0.5],  # Pareto (low refusals, high kl)
+                [50, 0.1],  # Pareto (high refusals, low kl)
+                [30, 0.3],  # Dominated by a mix
+                [10, 0.1],  # Pareto (best on both!)
+            ]
+        )
         mask = compute_pareto_frontier_2d(points)
-        assert mask[3] == True   # dominates everything  # noqa: E712
+        assert mask[3] == True  # dominates everything  # noqa: E712
         # Point 2 (30, 0.3) is dominated by point 3 (10, 0.1)
         assert mask[2] == False  # noqa: E712
 
     def test_all_pareto(self):
         from shade.pareto import compute_pareto_frontier_2d
+
         points = np.array([[1, 10.0], [5, 5.0], [10, 1.0]])
         mask = compute_pareto_frontier_2d(points)
         assert mask.all()
@@ -208,8 +232,10 @@ class TestComputeParetoFrontier:
 
 class TestDecomposeDirection:
     def test_returns_top_features(self):
-        import torch
         from unittest.mock import MagicMock
+
+        import torch
+
         from shade.sae_analysis import decompose_direction_into_features
 
         # Mock: refusal direction is a random vector

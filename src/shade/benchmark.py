@@ -36,9 +36,9 @@ def compute_gsm8k_accuracy(predictions: list[str], references: list[str]) -> flo
     if not predictions:
         return 0.0
     correct = sum(
-        1 for p, r in zip(predictions, references)
-        if (pa := extract_gsm8k_answer(p)) is not None
-        and pa == extract_gsm8k_answer(r)
+        1
+        for p, r in zip(predictions, references)
+        if (pa := extract_gsm8k_answer(p)) is not None and pa == extract_gsm8k_answer(r)
     )
     return correct / len(predictions)
 
@@ -46,6 +46,7 @@ def compute_gsm8k_accuracy(predictions: list[str], references: list[str]) -> flo
 def load_gsm8k_problems(limit: int = 50) -> tuple[list[str], list[str]]:
     """Load GSM8K math problems from HuggingFace."""
     from datasets import load_dataset
+
     dataset = load_dataset("openai/gsm8k", "main", split=f"test[:{limit}]")
     return [row["question"] for row in dataset], [row["answer"] for row in dataset]
 
@@ -64,7 +65,9 @@ def compute_perplexity(
     total_tokens = 0
 
     for text in texts:
-        encodings = tokenizer(text, return_tensors="pt", truncation=True, max_length=max_length)
+        encodings = tokenizer(
+            text, return_tensors="pt", truncation=True, max_length=max_length
+        )
         input_ids = encodings["input_ids"].to(next(model.parameters()).device)
 
         with torch.no_grad():
@@ -89,6 +92,7 @@ def compute_perplexity(
 def load_wikitext2_samples(limit: int = 50) -> list[str]:
     """Load Wikitext-2 test samples for perplexity evaluation."""
     from datasets import load_dataset
+
     dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split=f"test[:{limit}]")
     return [row["text"] for row in dataset if row["text"].strip()]
 
@@ -96,6 +100,7 @@ def load_wikitext2_samples(limit: int = 50) -> list[str]:
 @dataclass
 class BenchmarkResult:
     """Results from a benchmark run."""
+
     model_name: str
     refusals: int
     total_prompts: int
@@ -124,17 +129,23 @@ def run_benchmark(
 
     logprobs = model.get_logprobs_batched(evaluator.good_prompts)
     kl_divergence = F.kl_div(
-        logprobs, evaluator.base_logprobs,
-        reduction="batchmean", log_target=True,
+        logprobs,
+        evaluator.base_logprobs,
+        reduction="batchmean",
+        log_target=True,
     ).item()
 
     gsm8k_accuracy = None
     gsm8k_total = None
     if run_gsm8k:
         from shade.utils import Prompt
+
         questions, answers = load_gsm8k_problems(limit=gsm8k_limit)
         gsm8k_total = len(questions)
-        prompts = [Prompt(system="Solve this math problem. Show your work.", user=q) for q in questions]
+        prompts = [
+            Prompt(system="Solve this math problem. Show your work.", user=q)
+            for q in questions
+        ]
         responses = model.get_responses_batched(prompts)
         gsm8k_accuracy = compute_gsm8k_accuracy(responses, answers)
 
@@ -144,9 +155,13 @@ def run_benchmark(
         perplexity = compute_perplexity(model.model, model.tokenizer, texts)
 
     return BenchmarkResult(
-        model_name=model_name, refusals=refusals, total_prompts=total_prompts,
-        refusal_rate=refusal_rate, kl_divergence=kl_divergence,
-        gsm8k_accuracy=gsm8k_accuracy, gsm8k_total=gsm8k_total,
+        model_name=model_name,
+        refusals=refusals,
+        total_prompts=total_prompts,
+        refusal_rate=refusal_rate,
+        kl_divergence=kl_divergence,
+        gsm8k_accuracy=gsm8k_accuracy,
+        gsm8k_total=gsm8k_total,
         perplexity=perplexity,
     )
 
@@ -162,7 +177,9 @@ def format_benchmark_table(result: BenchmarkResult) -> str:
     if result.perplexity is not None:
         lines.append(f"  Perplexity:     {result.perplexity:.2f}")
     if result.gsm8k_accuracy is not None:
-        lines.append(f"  GSM8K Accuracy: {result.gsm8k_accuracy:.1%} ({result.gsm8k_total} problems)")
+        lines.append(
+            f"  GSM8K Accuracy: {result.gsm8k_accuracy:.1%} ({result.gsm8k_total} problems)"
+        )
     lines.append("=" * 50)
     return "\n".join(lines)
 
@@ -170,4 +187,5 @@ def format_benchmark_table(result: BenchmarkResult) -> str:
 def format_benchmark_json(result: BenchmarkResult) -> str:
     """Format a BenchmarkResult as JSON."""
     from dataclasses import asdict
+
     return _json.dumps(asdict(result), indent=2)

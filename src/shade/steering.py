@@ -42,6 +42,10 @@ def train_steering_vector_from_prompts(
 
     pairs = build_contrastive_pairs(harmless_prompts, harmful_prompts)
     return train_steering_vector(
-        model, tokenizer, pairs,
-        layers=layers, batch_size=batch_size, show_progress=show_progress,
+        model,
+        tokenizer,
+        pairs,
+        layers=layers,
+        batch_size=batch_size,
+        show_progress=show_progress,
     )

@@ -43,7 +43,7 @@ for _mod_name in _STUB_MODULES:
         sys.modules[_mod_name] = MagicMock()
 
 # Now it is safe to import the server (and transitively shade.model / shade.config).
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
 from shade.server import app  # noqa: E402
 
