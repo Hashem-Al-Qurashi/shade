@@ -444,9 +444,9 @@ def _gpt2_get_layer_modules(self, layer_index):
         if isinstance(module, Module):
             modules.setdefault(component, []).append(module)
 
-    with suppress(Exception):
+    with suppress(AttributeError):
         try_add("attn.c_proj", layer.attn.c_proj)
-    with suppress(Exception):
+    with suppress(AttributeError):
         try_add("mlp.c_proj", layer.mlp.c_proj)
 
     total = sum(len(mods) for mods in modules.values())
@@ -540,8 +540,13 @@ def shade_model(_restore_real_modules):
         # Safety reset: ensure model is clean even if a test crashes mid-abliteration
         try:
             model_wrapper.reset_model()
-        except Exception:
-            pass
+        except Exception as exc:
+            import warnings
+
+            warnings.warn(
+                f"shade_model teardown: reset_model() failed: {exc}",
+                stacklevel=1,
+            )
 
 
 # ---------------------------------------------------------------------------
