@@ -30,9 +30,7 @@ pytestmark = pytest.mark.integration
 def _restore_real_modules():
     """Temporarily remove MagicMock entries so real imports work; restore after."""
     mocked = {
-        name: mod
-        for name, mod in sys.modules.items()
-        if isinstance(mod, MagicMock)
+        name: mod for name, mod in sys.modules.items() if isinstance(mod, MagicMock)
     }
     for name in mocked:
         del sys.modules[name]
