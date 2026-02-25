@@ -11,15 +11,10 @@ from __future__ import annotations
 
 import math
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 import torch
-
-# Root of the repo — used for saving baselines
-REPO_ROOT = Path(__file__).resolve().parent.parent
-BASELINES_DIR = REPO_ROOT / "results" / "baselines"
 
 pytestmark = pytest.mark.integration
 
@@ -33,13 +28,17 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True, scope="module")
 def _restore_real_modules():
-    """Remove MagicMock entries from sys.modules so real imports work."""
-    mocked_names = [
-        name for name, mod in sys.modules.items() if isinstance(mod, MagicMock)
-    ]
-    for name in mocked_names:
+    """Temporarily remove MagicMock entries so real imports work; restore after."""
+    mocked = {
+        name: mod
+        for name, mod in sys.modules.items()
+        if isinstance(mod, MagicMock)
+    }
+    for name in mocked:
         del sys.modules[name]
     yield
+    # Restore mocks so other test modules aren't affected
+    sys.modules.update(mocked)
 
 
 # ---------------------------------------------------------------------------
@@ -326,16 +325,26 @@ class TestParetoWithRealisticData:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="module")
+def baselines_dir(tmp_path_factory):
+    """Temp directory for baseline files, shared across TestBaselinePersistence tests."""
+    return tmp_path_factory.mktemp("baselines")
+
+
 class TestBaselinePersistence:
-    """Save real GPT-2 metrics as a baseline and check for regressions."""
+    """Save real GPT-2 metrics as a baseline and check for regressions.
 
-    BASELINE_PATH = BASELINES_DIR / "gpt2_baseline.json"
+    NOTE: test_regression_check_against_baseline depends on test_save_baseline
+    running first (pytest runs methods in definition order by default).
+    The pytest.skip guard handles the case where the baseline file doesn't exist.
+    """
 
-    def test_save_baseline(self, gpt2):
+    def test_save_baseline(self, gpt2, baselines_dir):
         """Compute real metrics and save as baseline JSON."""
         from shade.benchmark import BenchmarkResult, compute_perplexity
         from shade.results import save_result
 
+        path = baselines_dir / "gpt2_baseline.json"
         model, tokenizer = gpt2
         texts = [
             "The quick brown fox jumps over the lazy dog.",
@@ -355,25 +364,26 @@ class TestBaselinePersistence:
             perplexity=ppl,
         )
 
-        save_result(result, self.BASELINE_PATH)
-        assert self.BASELINE_PATH.exists(), "Baseline file should be created"
+        save_result(result, path)
+        assert path.exists(), "Baseline file should be created"
 
         # Verify it's valid JSON and round-trips correctly
         from shade.results import load_result
 
-        loaded = load_result(self.BASELINE_PATH)
+        loaded = load_result(path)
         assert loaded.model_name == "gpt2"
         assert loaded.perplexity == pytest.approx(ppl)
 
-    def test_regression_check_against_baseline(self, gpt2):
+    def test_regression_check_against_baseline(self, gpt2, baselines_dir):
         """If a baseline exists, recompute and compare within tolerance."""
         from shade.benchmark import BenchmarkResult, compute_perplexity
         from shade.results import compare_baseline, load_result
 
-        if not self.BASELINE_PATH.exists():
+        path = baselines_dir / "gpt2_baseline.json"
+        if not path.exists():
             pytest.skip("No baseline file — run test_save_baseline first")
 
-        baseline = load_result(self.BASELINE_PATH)
+        baseline = load_result(path)
         model, tokenizer = gpt2
         texts = [
             "The quick brown fox jumps over the lazy dog.",
@@ -527,6 +537,11 @@ def shade_model(_restore_real_modules):
         )
 
         yield model_wrapper
+        # Safety reset: ensure model is clean even if a test crashes mid-abliteration
+        try:
+            model_wrapper.reset_model()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
