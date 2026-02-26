@@ -297,11 +297,32 @@ def run_experiment(config_path: str) -> None:
 
     # Step 1: Load model
     logger.info("Step 1/9: Loading model %s...", config.model)
-    settings_kwargs: dict = {"model": config.model, "_cli_parse_args": False}
+    settings_kwargs: dict = {
+        "model": config.model,
+        "_cli_parse_args": False,
+        "batch_size": 4,  # Explicit batch size (Settings default 0 means "auto" via main.py)
+    }
     if config.quantization == "bnb_4bit":
         settings_kwargs["quantization"] = "bnb_4bit"
     settings = Settings(**settings_kwargs)
+
+    # GPT-2 uses a different architecture (Conv1D, transformer.h) than
+    # LLaMA-style models. Apply compatibility patches if needed.
+    is_gpt2 = config.model.lower().startswith("gpt2")
+    if is_gpt2:
+        from experiments.gpt2_compat import gpt2_model_patches
+
+        _gpt2_ctx = gpt2_model_patches()
+        _gpt2_ctx.__enter__()
+
     model = Model(settings)
+
+    # GPT-2 has no chat template; provide a minimal one
+    if is_gpt2 and model.tokenizer.chat_template is None:
+        model.tokenizer.chat_template = (
+            "{% for message in messages %}{{ message['content'] }}\n{% endfor %}"
+        )
+
     torch.set_grad_enabled(False)
 
     # Step 2: Baseline benchmark
