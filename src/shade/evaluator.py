@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import torch.nn.functional as F
 from torch import Tensor
-from pathlib import Path
 
 from .config import Settings
 from .model import Model

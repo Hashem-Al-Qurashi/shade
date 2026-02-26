@@ -27,18 +27,10 @@ class TestBatchify:
         [
             pytest.param([], 3, [], id="empty_list"),
             pytest.param([1], 1, [[1]], id="single_item_batch_1"),
-            pytest.param(
-                [1, 2, 3, 4], 2, [[1, 2], [3, 4]], id="exact_divisible"
-            ),
-            pytest.param(
-                [1, 2, 3, 4, 5], 2, [[1, 2], [3, 4], [5]], id="non_divisible"
-            ),
-            pytest.param(
-                [1, 2, 3], 1, [[1], [2], [3]], id="batch_size_1"
-            ),
-            pytest.param(
-                [1, 2], 10, [[1, 2]], id="batch_size_larger_than_list"
-            ),
+            pytest.param([1, 2, 3, 4], 2, [[1, 2], [3, 4]], id="exact_divisible"),
+            pytest.param([1, 2, 3, 4, 5], 2, [[1, 2], [3, 4], [5]], id="non_divisible"),
+            pytest.param([1, 2, 3], 1, [[1], [2], [3]], id="batch_size_1"),
+            pytest.param([1, 2], 10, [[1, 2]], id="batch_size_larger_than_list"),
         ],
     )
     def test_batchify(self, items, batch_size, expected):

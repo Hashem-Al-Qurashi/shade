@@ -1,0 +1,10 @@
+{
+  "model_name": "gpt2",
+  "refusals": 0,
+  "total_prompts": 3,
+  "refusal_rate": 0.0,
+  "kl_divergence": 0.0,
+  "gsm8k_accuracy": null,
+  "gsm8k_total": null,
+  "perplexity": 67.13548278808594
+}

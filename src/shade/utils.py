@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TypeVar
-from questionary import Choice
 
+from questionary import Choice
 from rich.console import Console
 
 from .config import DatasetSpecification, Settings
@@ -47,11 +47,14 @@ def print_memory_usage():
 def check_disk_space(required_gb: float = 10.0, path: str = ".") -> bool:
     """Checks if there is enough free disk space."""
     import shutil
+
     total, used, free = shutil.disk_usage(path)
     free_gb = free / (1024**3)
     if free_gb < required_gb:
-        print(f"[bold red]⚠ Warning: Low Disk Space![/]")
-        print(f"Available: [bold]{free_gb:.2f} GB[/], Recommended at least: [bold]{required_gb} GB[/]")
+        print("[bold red]⚠ Warning: Low Disk Space![/]")
+        print(
+            f"Available: [bold]{free_gb:.2f} GB[/], Recommended at least: [bold]{required_gb} GB[/]"
+        )
         return False
     return True
 
@@ -60,9 +63,15 @@ def print_disclaimer():
     """Prints a legal disclaimer about model decensoring."""
     print()
     print("[bold yellow]⚖ LEGAL DISCLAIMER[/]")
-    print("[dim]By using Shade, you acknowledge that this tool is designed for research and educational purposes.[/]")
-    print("[dim]Removing model safety guards can result in the generation of harmful, biased, or restricted content.[/]")
-    print("[dim]The developers of Shade are not responsible for any misuse of the resulting models.[/]")
+    print(
+        "[dim]By using Shade, you acknowledge that this tool is designed for research and educational purposes.[/]"
+    )
+    print(
+        "[dim]Removing model safety guards can result in the generation of harmful, biased, or restricted content.[/]"
+    )
+    print(
+        "[dim]The developers of Shade are not responsible for any misuse of the resulting models.[/]"
+    )
     print("[dim]Use responsibly and at your own risk.[/]")
     print()
 
@@ -122,6 +131,7 @@ def prompt_select(message: str, choices: list[Any]) -> Any:
     else:
         import questionary
         from questionary import Style
+
         return questionary.select(
             message,
             choices=choices,
@@ -141,6 +151,7 @@ def prompt_text(
         return result if result else default
     else:
         import questionary
+
         question = questionary.text(message, default=default, qmark=qmark)
         if unsafe:
             return question.unsafe_ask()
@@ -153,6 +164,7 @@ def prompt_path(message: str) -> str:
         return prompt_text(message)
     else:
         import questionary
+
         return questionary.path(message, only_directories=True).ask()
 
 
@@ -162,6 +174,7 @@ def prompt_password(message: str) -> str:
         return getpass.getpass(message)
     else:
         import questionary
+
         return questionary.password(message).ask()
 
 
@@ -265,6 +278,7 @@ def empty_cache():
         is_sdaa_available,
         is_xpu_available,
     )
+
     # Collecting garbage is not an idempotent operation, and to avoid OOM errors,
     # gc.collect() has to be called both before and after emptying the backend cache.
     # See https://github.com/AssemSabry/Shade/pull/17 for details.

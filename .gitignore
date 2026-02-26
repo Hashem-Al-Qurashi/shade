@@ -34,3 +34,7 @@ wheels/
 node_modules/
 /web chat/node_modules/
 # /web chat/dist/  <-- Commented out to ALLOW distributive files
+.coverage
+
+# Experiment results (generated, potentially large)
+results/experiments/
