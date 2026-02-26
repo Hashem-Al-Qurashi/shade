@@ -63,3 +63,28 @@ benchmark:
 
         with pytest.raises(ValueError, match="model"):
             load_config(str(config_file))
+
+
+class TestSeedEverything:
+    def test_seeds_are_deterministic(self):
+        """After seeding, random values should be reproducible."""
+        import random
+
+        import numpy as np
+        import torch
+
+        from experiments.config import seed_everything
+
+        seed_everything(42)
+        r1 = random.random()
+        n1 = np.random.rand()
+        t1 = torch.rand(1).item()
+
+        seed_everything(42)
+        r2 = random.random()
+        n2 = np.random.rand()
+        t2 = torch.rand(1).item()
+
+        assert r1 == r2
+        assert n1 == n2
+        assert t1 == t2

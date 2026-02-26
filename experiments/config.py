@@ -59,3 +59,17 @@ def load_config(path: str) -> ExperimentConfig:
         steering=SteeringConfig(**steer_raw),
         benchmark=BenchmarkConfig(**bench_raw),
     )
+
+
+def seed_everything(seed: int) -> None:
+    """Set seeds for Python, NumPy, and PyTorch for reproducibility."""
+    import random
+
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
