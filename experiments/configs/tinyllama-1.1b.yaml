@@ -1,0 +1,24 @@
+# TinyLlama-1.1B (4-bit) — first real abliteration test.
+# LLaMA-architecture model with basic instruction following.
+# Runs on GTX 1660 Ti (6GB) with 4-bit quantization.
+
+model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+quantization: bnb_4bit
+
+seed: 42
+
+abliteration:
+  n_trials: 20
+  n_startup_trials: 10
+  harmful_prompts: 50
+
+steering:
+  layers: [8, 9, 10, 11, 12]    # Later layers of TinyLlama's 22
+  multipliers: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+  batch_size: 4
+
+benchmark:
+  gsm8k: false            # TinyLlama has limited math ability
+  gsm8k_limit: 20
+  perplexity: true
+  perplexity_limit: 20
