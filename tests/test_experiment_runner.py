@@ -78,14 +78,27 @@ class TestRunAbliteration:
             perplexity=70.0,
         )
 
+        # Build a mock trial that returns valid suggestions
+        def make_mock_trial():
+            trial = MagicMock()
+            trial.number = 0
+            trial.suggest_categorical.return_value = "global"
+            trial.suggest_float.return_value = 5.0
+            return trial
+
         # Mock load_prompts (lazy import inside run_abliteration) and run_benchmark
         with (
             patch("experiments.run_comparison.run_benchmark", return_value=expected),
             patch("shade.utils.load_prompts", return_value=[MagicMock()] * 5),
             patch("experiments.run_comparison.optuna") as mock_optuna,
         ):
-            # Make the mock study's optimize a no-op (skip trials entirely)
+            # Make the mock study's optimize actually call the objective once
             mock_study = MagicMock()
+
+            def fake_optimize(objective_fn, n_trials=1):
+                objective_fn(make_mock_trial())
+
+            mock_study.optimize.side_effect = fake_optimize
             mock_optuna.create_study.return_value = mock_study
             mock_optuna.logging = MagicMock()
             mock_optuna.samplers.TPESampler.return_value = MagicMock()

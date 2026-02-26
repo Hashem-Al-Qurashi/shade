@@ -68,6 +68,8 @@ def run_abliteration(
     perplexity_limit: int = 50,
 ) -> BenchmarkResult:
     """Step 3-4: Run Optuna abliteration search, then benchmark the best trial."""
+    from dataclasses import asdict
+
     from shade.model import AbliterationParameters
     from shade.utils import load_prompts
 
@@ -143,8 +145,6 @@ def run_abliteration(
             best_trial_data["refusals"],
             best_trial_data["kl"],
         ):
-            from dataclasses import asdict
-
             best_trial_data["refusals"] = refusals
             best_trial_data["kl"] = kl_divergence
             best_trial_data["params"] = {k: asdict(v) for k, v in parameters.items()}
@@ -163,6 +163,12 @@ def run_abliteration(
     study.optimize(objective, n_trials=n_trials)
 
     # Restore best trial and benchmark it
+    if best_trial_data["params"] is None:
+        raise RuntimeError(
+            "No abliteration trials completed successfully — "
+            "check model compatibility and evaluator configuration"
+        )
+
     logger.info(
         "Restoring best trial (refusals=%d, KL=%.4f)...",
         best_trial_data["refusals"],
@@ -264,10 +270,11 @@ def run_steering_sweep(
 def run_experiment(config_path: str) -> None:
     """Run the full experiment pipeline from a YAML config."""
     from experiments.config import load_config, seed_everything
-    from shade.compare import format_comparison_table
+    from shade.compare import format_comparison_json, format_comparison_table
     from shade.config import Settings
     from shade.evaluator import Evaluator
     from shade.model import Model
+    from shade.results import load_result
 
     # Configure logging
     logging.basicConfig(
@@ -301,8 +308,6 @@ def run_experiment(config_path: str) -> None:
     baseline_path = results_dir / "baseline.json"
     if baseline_path.exists():
         logger.info("Step 2/9: Baseline already exists, skipping.")
-        from shade.results import load_result
-
         baseline = load_result(baseline_path)
     else:
         logger.info("Step 2/9: Running baseline benchmark...")
@@ -323,8 +328,6 @@ def run_experiment(config_path: str) -> None:
     abliterated_path = results_dir / "abliterated.json"
     if abliterated_path.exists():
         logger.info("Steps 3-4/9: Abliterated result already exists, skipping.")
-        from shade.results import load_result
-
         abliterated = load_result(abliterated_path)
     else:
         logger.info("Steps 3-4/9: Running abliteration optimization...")
@@ -351,8 +354,6 @@ def run_experiment(config_path: str) -> None:
     )
     if all_steered_exist:
         logger.info("Steps 5-6/9: Steered results already exist, skipping.")
-        from shade.results import load_result
-
         for mult in config.steering.multipliers:
             steered_results.append(load_result(results_dir / f"steered_{mult}.json"))
     else:
@@ -378,8 +379,6 @@ def run_experiment(config_path: str) -> None:
     # Step 7: Save comparison JSON
     logger.info("Step 7/9: Saving comparison...")
     all_results = [baseline, abliterated] + steered_results
-    from shade.compare import format_comparison_json
-
     comparison_path = results_dir / "comparison.json"
     comparison_path.write_text(format_comparison_json(all_results))
 
